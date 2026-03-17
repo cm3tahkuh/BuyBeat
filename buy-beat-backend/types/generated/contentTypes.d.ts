@@ -456,7 +456,9 @@ export interface ApiBeatFileBeatFile extends Struct.CollectionTypeSchema {
       'api::beat-file.beat-file'
     > &
       Schema.Attribute.Private;
-    price: Schema.Attribute.Decimal;
+    price: Schema.Attribute.Decimal &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<29.99>;
     publishedAt: Schema.Attribute.DateTime;
     purchases: Schema.Attribute.Relation<'oneToMany', 'api::purchase.purchase'>;
     type: Schema.Attribute.Enumeration<
