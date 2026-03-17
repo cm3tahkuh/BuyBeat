@@ -1,0 +1,55 @@
+name: beat_marketplace
+description: A beat marketplace app for artists and producers
+publish_to: "none"
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.8.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  intl: ^0.20.2        # локализация дат
+  vector_math: ^2.1.4  # для Matrix4, Vector3, Vector4
+  google_fonts: ^6.2.1 # шрифты Google Fonts (только шрифты, не API)
+
+  # Навигация
+  go_router: ^16.2.1
+
+  # Управление состоянием
+  flutter_riverpod: ^3.0.0
+
+  # Аудио-плеер (работает в вебе)
+  just_audio: ^0.10.5
+
+  # UI и иконки
+  font_awesome_flutter: ^10.5.0
+  
+  # HTTP клиент для Strapi API
+  http: ^1.2.0
+  
+  # Локальное хранилище токенов
+  shared_preferences: ^2.2.2
+  
+  # Утилиты
+  path_provider: ^2.1.5
+  path: ^1.9.1
+  uuid: ^4.5.1         # для генерации уникальных ID
+  json_annotation: ^4.9.0  # для JSON сериализации
+  file_picker: ^10.3.10
+  pdf: ^3.11.3
+  printing: ^5.14.2
+  url_launcher: ^6.3.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  # Генерация кода для моделей
+  build_runner: ^2.4.13
+  json_serializable: ^6.8.0
+
+flutter:
+  uses-material-design: true
