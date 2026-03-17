@@ -29,7 +29,9 @@
       ]
     },
     "price": {
-      "type": "decimal"
+      "type": "decimal",
+      "required": true,
+      "default": 29.99
     },
     "license_type": {
       "type": "enumeration",

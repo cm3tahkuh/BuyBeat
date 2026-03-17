@@ -51,7 +51,9 @@
       "type": "string"
     },
     "price_base": {
-      "type": "decimal"
+      "type": "decimal",
+      "required": true,
+      "default": 29.99
     },
     "duration_seconds": {
       "type": "integer"

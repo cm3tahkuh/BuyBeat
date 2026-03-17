@@ -496,7 +496,9 @@ export interface ApiBeatBeat extends Struct.CollectionTypeSchema {
     localizations: Schema.Attribute.Relation<'oneToMany', 'api::beat.beat'> &
       Schema.Attribute.Private;
     mood: Schema.Attribute.String;
-    price_base: Schema.Attribute.Decimal;
+    price_base: Schema.Attribute.Decimal &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<29.99>;
     publishedAt: Schema.Attribute.DateTime;
     tags: Schema.Attribute.Relation<'manyToMany', 'api::tag.tag'>;
     title: Schema.Attribute.String & Schema.Attribute.Required;
