@@ -1,0 +1,79 @@
+{
+  "kind": "collectionType",
+  "collectionName": "beats",
+  "info": {
+    "singularName": "beat",
+    "pluralName": "beats",
+    "displayName": "Beat"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "users_permissions_user": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user",
+      "inversedBy": "beats"
+    },
+    "genre": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::genre.genre",
+      "inversedBy": "beats"
+    },
+    "cover": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images"
+      ]
+    },
+    "audio_preview": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "audios"
+      ]
+    },
+    "bpm": {
+      "type": "integer"
+    },
+    "key": {
+      "type": "string"
+    },
+    "mood": {
+      "type": "string"
+    },
+    "price_base": {
+      "type": "decimal"
+    },
+    "duration_seconds": {
+      "type": "integer"
+    },
+    "visibility": {
+      "type": "enumeration",
+      "enum": [
+        "PUBLIC",
+        "SOLD_EXCLUSIVE"
+      ]
+    },
+    "tags": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::tag.tag",
+      "inversedBy": "beats"
+    },
+    "beat_files": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::beat-file.beat-file",
+      "mappedBy": "beat"
+    }
+  }
+}

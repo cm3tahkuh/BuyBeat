@@ -1,0 +1,35 @@
+{
+  "kind": "collectionType",
+  "collectionName": "wallet_entries",
+  "info": {
+    "singularName": "wallet-entry",
+    "pluralName": "wallet-entries",
+    "displayName": "WalletEntry"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "wallet": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::wallet.wallet",
+      "inversedBy": "wallet_entries"
+    },
+    "decimal": {
+      "type": "decimal"
+    },
+    "type": {
+      "type": "enumeration",
+      "enum": [
+        "topup",
+        "purchase",
+        "payout"
+      ]
+    },
+    "description": {
+      "type": "string"
+    }
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "kind": "collectionType",
+  "collectionName": "beat_files",
+  "info": {
+    "singularName": "beat-file",
+    "pluralName": "beat-files",
+    "displayName": "BeatFile"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "beat": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::beat.beat",
+      "inversedBy": "beat_files"
+    },
+    "type": {
+      "type": "enumeration",
+      "enum": [
+        "MP3",
+        "WAV",
+        "STEMS",
+        "PROJECT",
+        "MELODY",
+        "EXCLUSIVE"
+      ]
+    },
+    "price": {
+      "type": "decimal"
+    },
+    "license_type": {
+      "type": "enumeration",
+      "enum": [
+        "lease",
+        "exclusive"
+      ]
+    },
+    "audio_file": {
+      "type": "media",
+      "multiple": false,
+      "required": true,
+      "allowedTypes": [
+        "audios"
+      ]
+    },
+    "enabled": {
+      "type": "boolean",
+      "required": true,
+      "default": true
+    },
+    "purchases": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::purchase.purchase",
+      "mappedBy": "beat_file"
+    }
+  }
+}
