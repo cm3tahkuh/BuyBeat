@@ -27,11 +27,8 @@ class ChatService {
         'populate[messages][fields][0]': 'text',
         'populate[messages][fields][1]': 'type',
         'populate[messages][fields][2]': 'createdAt',
-        'populate[messages][populate][users_permissions_user][fields][0]': 'id',
-        'populate[messages][populate][users_permissions_user][fields][1]': 'username',
-        'populate[messages][populate][file_attachment][fields][0]': 'url',
+        'populate[messages][populate][file_attachment][fields][0]': 'mime',
         'populate[messages][populate][file_attachment][fields][1]': 'name',
-        'populate[messages][populate][file_attachment][fields][2]': 'mime',
         'filters[users_permissions_users][id][\$eq]': user.id.toString(),
         'sort': 'updatedAt:desc',
         'pagination[pageSize]': '100',
@@ -246,6 +243,7 @@ class ChatService {
     required int chatId,
     required List<int> bytes,
     required String fileName,
+    String? text,
   }) async {
     final user = await AuthService().getCurrentUser();
     if (user == null) throw Exception('Не авторизован');
@@ -261,6 +259,7 @@ class ChatService {
           'chat': chatId,
           'users_permissions_user': user.id,
           'type': 'FILE',
+          if (text != null) 'text': text,
           'file_attachment': fileId,
           'publishedAt': DateTime.now().toUtc().toIso8601String(),
         },

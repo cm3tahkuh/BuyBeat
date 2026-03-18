@@ -10,13 +10,30 @@ class CartScreen extends StatefulWidget {
 }
 
 class _CartScreenState extends State<CartScreen> {
+  final _cart = CartService.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    _cart.addListener(_onCartChanged);
+  }
+
+  @override
+  void dispose() {
+    _cart.removeListener(_onCartChanged);
+    super.dispose();
+  }
+
+  void _onCartChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
-    final cart = CartService.instance;
-    final items = cart.items;
+    final items = _cart.items;
     return GlassScaffold(
       appBar: GlassAppBar(title: 'Корзина', showBack: false, leading: const SizedBox.shrink(), actions: [
-        if (items.isNotEmpty) IconButton(icon: Icon(Icons.delete_sweep, color: LG.red), onPressed: () { cart.clear(); setState(() {}); }),
+        if (items.isNotEmpty) IconButton(icon: Icon(Icons.delete_sweep, color: LG.red), onPressed: () => _cart.clear()),
       ]),
       body: SafeArea(child: items.isEmpty
         ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -50,7 +67,7 @@ class _CartScreenState extends State<CartScreen> {
                     Text('\$${item.price.toStringAsFixed(2)}', style: LG.font(weight: FontWeight.w700, color: LG.green)),
                     const SizedBox(width: 8),
                     GestureDetector(
-                      onTap: () { cart.removeItem(item.key); setState(() {}); },
+                      onTap: () => _cart.removeItem(item.key),
                       child: Container(
                         width: 32, height: 32,
                         decoration: BoxDecoration(color: LG.red.withValues(alpha: 0.12), shape: BoxShape.circle),
@@ -61,25 +78,30 @@ class _CartScreenState extends State<CartScreen> {
                 );
               },
             )),
-            // Total bar
-            ClipRRect(child: BackdropFilter(
+            // Total bar — bottom padding учитывает плавающий нав-бар (~92px) и мини-плеер (~172px)
+            Padding(
+              padding: EdgeInsets.fromLTRB(16, 8, 16, MediaQuery.of(context).padding.bottom + 180),
+              child: ClipRRect(borderRadius: BorderRadius.circular(LG.radiusL), child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: LG.blurHeavy, sigmaY: LG.blurHeavy),
               child: Container(
-                padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
-                decoration: BoxDecoration(color: LG.panelFillLight, border: Border(top: BorderSide(color: LG.border))),
-                child: SafeArea(top: false, child: Row(children: [
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+                decoration: BoxDecoration(color: LG.panelFillLight, borderRadius: BorderRadius.circular(LG.radiusL), border: Border.all(color: LG.border)),
+                child: Row(children: [
                   Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('Итого', style: LG.font(size: 13, color: LG.textMuted)),
-                    Text('\$${cart.totalPrice.toStringAsFixed(2)}', style: LG.font(size: 24, weight: FontWeight.w800, color: LG.green)),
+                    Text('\$${_cart.totalPrice.toStringAsFixed(2)}', style: LG.font(size: 24, weight: FontWeight.w800, color: LG.green)),
                   ]),
                   const Spacer(),
-                  GlassButton(text: 'Оформить', icon: Icons.arrow_forward, onTap: () async {
-                    final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => const CheckoutScreen()));
-                    if (result == true) setState(() {});
-                  }),
-                ])),
+                  SizedBox(
+                    width: 160,
+                    child: GlassButton(text: 'Оформить', icon: Icons.arrow_forward, onTap: () async {
+                      final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => const CheckoutScreen()));
+                      if (result == true) setState(() {});
+                    }),
+                  ),
+                ]),
               ),
-            )),
+            ))),
           ]),
       ),
     );

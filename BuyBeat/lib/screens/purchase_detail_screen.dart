@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../config/glass_theme.dart';
 import '../config/strapi_config.dart';
 import '../models/purchase.dart';
@@ -430,14 +431,16 @@ class _PurchaseDetailScreenState extends State<PurchaseDetailScreen> {
 
   void _openUrl(String url) async {
     try {
-      // Используем url_launcher если доступен, или показываем URL
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Ссылка: $url', style: const TextStyle(fontSize: 12)),
-          duration: const Duration(seconds: 5),
-          action: SnackBarAction(label: 'OK', onPressed: () {}),
-        ),
-      );
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Не удалось открыть ссылку: $url', style: const TextStyle(fontSize: 12))),
+          );
+        }
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

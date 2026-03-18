@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/beat.dart';
 import '../models/beat_file.dart';
@@ -28,8 +29,9 @@ class CartItem {
   String get key => '${beat.id}_${beatFile.id}';
 }
 
-/// Сервис клиентской корзины (хранится в SharedPreferences)
-class CartService {
+/// Сервис клиентской корзины (хранится в SharedPreferences).
+/// Extends ChangeNotifier so UI widgets can listen and rebuild automatically.
+class CartService extends ChangeNotifier {
   static const _storageKey = 'buybeat_cart';
 
   static CartService? _instance;
@@ -50,6 +52,7 @@ class CartService {
     if (_items.any((i) => i.key == key)) return false; // уже есть
     _items.add(CartItem(beat: beat, beatFile: beatFile));
     _persist();
+    notifyListeners();
     return true;
   }
 
@@ -57,12 +60,14 @@ class CartService {
   void removeItem(String key) {
     _items.removeWhere((i) => i.key == key);
     _persist();
+    notifyListeners();
   }
 
   /// Очистить корзину
   void clear() {
     _items.clear();
     _persist();
+    notifyListeners();
   }
 
   /// Проверить, есть ли файл в корзине

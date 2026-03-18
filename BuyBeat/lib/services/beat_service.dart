@@ -315,9 +315,12 @@ class BeatService {
     final response = await _strapi.get(
       StrapiConfig.beatFiles,
       queryParams: {
-        'populate': '*',
         'filters[beat][id][\$eq]': beatId.toString(),
         'filters[enabled][\$eq]': 'true',
+        'populate[audio_file][fields][0]': 'url',
+        'populate[audio_file][fields][1]': 'name',
+        'populate[audio_file][fields][2]': 'size',
+        'populate[beat][fields][0]': 'id',
       },
     );
     

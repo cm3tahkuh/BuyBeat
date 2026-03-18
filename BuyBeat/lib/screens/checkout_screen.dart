@@ -140,7 +140,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         onTap: _isProcessing || _loadingWallet || ((_walletBalance ?? 0) < _cart.totalPrice) ? null : _processPurchase,
       )),
       const SizedBox(height: 12),
-      Center(child: Text('Демо-оплата для дипломного проекта', style: LG.font(color: LG.textMuted, size: 11))),
     ]));
   }
 

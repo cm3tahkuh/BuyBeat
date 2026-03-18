@@ -5,6 +5,7 @@ import '../config/strapi_config.dart';
 import 'strapi_service.dart';
 import 'auth_service.dart';
 import 'cart_service.dart';
+import 'pdf_receipt_service.dart';
 
 /// Сервис покупок и кошелька
 class PurchaseService {
@@ -146,6 +147,7 @@ class PurchaseService {
         userId: user.id,
         beatFileId: item.beatFile.id,
         amount: item.price,
+        buyerUsername: user.displayName ?? user.username ?? user.email ?? 'Покупатель',
       );
       purchases.add(purchase);
     }
@@ -172,6 +174,7 @@ class PurchaseService {
     required int userId,
     required int beatFileId,
     required double amount,
+    required String buyerUsername,
   }) async {
     final response = await _strapi.post(
       StrapiConfig.purchases,
@@ -195,11 +198,90 @@ class PurchaseService {
       final docId = item['documentId'] as String?;
       final freshResponse = await _strapi.get(
         '${StrapiConfig.purchases}/${docId ?? item['id']}',
-        queryParams: {'populate': '*'},
+        queryParams: {
+          'populate[beat_file][populate][beat][populate][cover][fields][0]': 'url',
+          'populate[beat_file][populate][beat][populate][cover][fields][1]': 'name',
+          'populate[beat_file][populate][beat][populate][audio_preview][fields][0]': 'url',
+          'populate[beat_file][populate][beat][populate][audio_preview][fields][1]': 'name',
+          'populate[beat_file][populate][beat][populate][users_permissions_user][fields][0]': 'id',
+          'populate[beat_file][populate][beat][populate][users_permissions_user][fields][1]': 'username',
+          'populate[beat_file][populate][audio_file][fields][0]': 'url',
+          'populate[beat_file][populate][audio_file][fields][1]': 'name',
+          'populate[license_pdf][fields][0]': 'url',
+          'populate[license_pdf][fields][1]': 'name',
+          'populate[license_pdf][fields][2]': 'mime',
+        },
       );
       freshItem = StrapiService.parseItem(freshResponse);
     } catch (_) {}
-    return Purchase.fromJson(freshItem ?? item);
+
+    final purchase = Purchase.fromJson(freshItem ?? item);
+
+    // Генерируем PDF-чек и прикрепляем к покупке
+    try {
+      final bf = freshItem?['beat_file'];
+      final beat = bf is Map ? bf['beat'] : null;
+      final producer = beat is Map ? beat['users_permissions_user'] : null;
+
+      final beatTitle = beat is Map ? (beat['title'] as String? ?? 'Бит') : 'Бит';
+      final producerName = producer is Map
+          ? (producer['display_name'] as String? ?? producer['username'] as String? ?? 'Продюсер')
+          : 'Продюсер';
+      final fileType = bf is Map ? (bf['type'] as String? ?? '') : '';
+      final licenseType = bf is Map
+          ? ((bf['license_type'] as String?) == 'exclusive' ? 'Эксклюзив' : 'Лицензия')
+          : 'Лицензия';
+
+      final pdfBytes = await PdfReceiptService.generateReceipt(
+        purchase: purchase,
+        beatTitle: beatTitle,
+        producerName: producerName,
+        fileType: fileType,
+        licenseType: licenseType,
+        buyerUsername: buyerUsername,
+      );
+
+      final uploaded = await _strapi.uploadFileBytes(
+        bytes: pdfBytes,
+        fileName: 'receipt_${purchase.id}.pdf',
+        mimeType: 'application/pdf',
+      );
+
+      if (uploaded.isNotEmpty) {
+        final fileId = uploaded.first['id'];
+        final docId = (freshItem ?? item)['documentId'] as String?;
+        final purchaseApiId = docId ?? '${purchase.id}';
+        await _strapi.put(
+          '${StrapiConfig.purchases}/$purchaseApiId',
+          body: {'data': {'license_pdf': fileId}},
+        );
+        // Re-fetch with the PDF now attached
+        try {
+          final withPdfResponse = await _strapi.get(
+            '${StrapiConfig.purchases}/$purchaseApiId',
+            queryParams: {
+              'populate[beat_file][populate][beat][populate][cover][fields][0]': 'url',
+              'populate[beat_file][populate][beat][populate][cover][fields][1]': 'name',
+              'populate[beat_file][populate][beat][populate][audio_preview][fields][0]': 'url',
+              'populate[beat_file][populate][beat][populate][audio_preview][fields][1]': 'name',
+              'populate[beat_file][populate][beat][populate][users_permissions_user][fields][0]': 'id',
+              'populate[beat_file][populate][beat][populate][users_permissions_user][fields][1]': 'username',
+              'populate[beat_file][populate][audio_file][fields][0]': 'url',
+              'populate[beat_file][populate][audio_file][fields][1]': 'name',
+              'populate[license_pdf][fields][0]': 'url',
+              'populate[license_pdf][fields][1]': 'name',
+              'populate[license_pdf][fields][2]': 'mime',
+            },
+          );
+          final withPdfItem = StrapiService.parseItem(withPdfResponse);
+          if (withPdfItem != null) return Purchase.fromJson(withPdfItem);
+        } catch (_) {}
+      }
+    } catch (_) {
+      // PDF generation/upload failed — return purchase without PDF
+    }
+
+    return purchase;
   }
 
   /// Получить покупки текущего пользователя (с глубокой популяцией)
@@ -213,18 +295,35 @@ class PurchaseService {
         'filters[users_permissions_user][id][\$eq]': user.id.toString(),
         'sort': 'createdAt:desc',
         'pagination[pageSize]': '100',
-        // Deep populate: beat_file → beat → cover, audio_preview, producer
-        'populate[beat_file][populate][beat][populate][0]': 'cover',
-        'populate[beat_file][populate][beat][populate][1]': 'audio_preview',
-        'populate[beat_file][populate][beat][populate][2]': 'users_permissions_user',
-        'populate[beat_file][populate][audio_file]': '*',
-        'populate[license_pdf]': '*',
-        'populate[users_permissions_user]': '*',
+        // Nested media: use [fields] to avoid .related 400
+        // Do NOT mix [fields] and [populate] on the same key — use only [populate]
+        'populate[beat_file][populate][beat][populate][cover][fields][0]': 'url',
+        'populate[beat_file][populate][beat][populate][cover][fields][1]': 'name',
+        'populate[beat_file][populate][beat][populate][audio_preview][fields][0]': 'url',
+        'populate[beat_file][populate][beat][populate][audio_preview][fields][1]': 'name',
+        'populate[beat_file][populate][beat][populate][users_permissions_user][fields][0]': 'id',
+        'populate[beat_file][populate][beat][populate][users_permissions_user][fields][1]': 'username',
+        'populate[beat_file][populate][audio_file][fields][0]': 'url',
+        'populate[beat_file][populate][audio_file][fields][1]': 'name',
+        // license_pdf: explicit fields to avoid UploadFile.related 400
+        'populate[license_pdf][fields][0]': 'url',
+        'populate[license_pdf][fields][1]': 'name',
+        'populate[license_pdf][fields][2]': 'mime',
+        'populate[users_permissions_user][fields][0]': 'id',
+        'populate[users_permissions_user][fields][1]': 'username',
       },
     );
 
     final items = StrapiService.parseList(response);
-    return items.map((json) => Purchase.fromJson(json)).toList();
+    final result = <Purchase>[];
+    for (final json in items) {
+      try {
+        result.add(Purchase.fromJson(json));
+      } catch (e) {
+        // skip items that fail to parse but don't crash the whole list
+      }
+    }
+    return result;
   }
 
   /// Проверить, куплен ли бит-файл текущим пользователем
@@ -256,7 +355,7 @@ class PurchaseService {
       queryParams: {
         'filters[users_permissions_user][id][\$eq]': user.id.toString(),
         'filters[purchase_status][\$eq]': 'completed',
-        'populate[beat_file]': '*',
+        'populate[beat_file][fields][0]': 'id',
         'pagination[pageSize]': '500',
       },
     );

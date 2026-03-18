@@ -1,4 +1,5 @@
 import 'package:json_annotation/json_annotation.dart';
+import '../config/strapi_config.dart';
 
 part 'chat.g.dart';
 
@@ -56,7 +57,7 @@ class Chat {
         final avatar = p['avatar'];
         if (avatar is Map<String, dynamic>) {
           final url = avatar['url'] as String?;
-          return url;
+          return url != null ? StrapiConfig.getMediaUrl(url) : null;
         }
       }
     }
@@ -77,20 +78,59 @@ class Chat {
   /// Последнее сообщение (текст)
   String? get lastMessageText {
     if (messages == null || messages!.isEmpty) return null;
-    // Сообщения отсортированы по createdAt desc — первое = последнее
-    final last = messages!.last;
-    if (last is Map<String, dynamic>) {
-      return last['text'] as String?;
+    // Берём последнее по ID (максимальный id = самое новое)
+    Map<String, dynamic>? newest;
+    int maxId = -1;
+    for (final m in messages!) {
+      if (m is Map<String, dynamic>) {
+        final id = m['id'] as int? ?? 0;
+        if (id > maxId) { maxId = id; newest = m; }
+      }
     }
-    return null;
+    if (newest == null) return null;
+    final type = newest['type'] as String?;
+    final text = newest['text'] as String?;
+    // FILE messages → показываем тип вложения
+    if (type == 'FILE' || text == '__doc__') {
+      final att = newest['file_attachment'];
+      if (att is Map<String, dynamic>) {
+        final mime = (att['mime'] as String?) ?? '';
+        final name = (att['name'] as String?) ?? '';
+        if (mime.startsWith('image/') || _isImageExt(name)) return '📷 Фото';
+        if (mime.startsWith('audio/') || _isAudioExt(name)) return '🎵 Аудио';
+        if (mime.startsWith('video/') || _isVideoExt(name)) return '🎬 Видео';
+      }
+      return '📎 Документ';
+    }
+    return text;
+  }
+
+  static bool _isImageExt(String n) {
+    final l = n.toLowerCase();
+    return l.endsWith('.jpg') || l.endsWith('.jpeg') || l.endsWith('.png') || l.endsWith('.gif') || l.endsWith('.webp');
+  }
+  static bool _isAudioExt(String n) {
+    final l = n.toLowerCase();
+    return l.endsWith('.mp3') || l.endsWith('.wav') || l.endsWith('.ogg') || l.endsWith('.flac') || l.endsWith('.aac');
+  }
+  static bool _isVideoExt(String n) {
+    final l = n.toLowerCase();
+    return l.endsWith('.mp4') || l.endsWith('.mov') || l.endsWith('.avi') || l.endsWith('.webm') || l.endsWith('.mkv');
   }
 
   /// Время последнего сообщения
   DateTime? get lastMessageTime {
     if (messages == null || messages!.isEmpty) return null;
-    final last = messages!.last;
-    if (last is Map<String, dynamic> && last['createdAt'] != null) {
-      return DateTime.tryParse(last['createdAt'] as String);
+    Map<String, dynamic>? newest;
+    int maxId = -1;
+    for (final m in messages!) {
+      if (m is Map<String, dynamic>) {
+        final id = m['id'] as int? ?? 0;
+        if (id > maxId) { maxId = id; newest = m; }
+      }
+    }
+    if (newest != null && newest['createdAt'] != null) {
+      return DateTime.tryParse(newest['createdAt'] as String);
     }
     return null;
   }

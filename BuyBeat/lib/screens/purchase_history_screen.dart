@@ -21,6 +21,7 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> with Sing
   List<WalletEntry> _walletEntries = [];
   bool _loadingPurchases = true;
   bool _loadingWallet = true;
+  String? _purchasesError;
 
   @override
   void initState() { super.initState(); _tabController = TabController(length: 2, vsync: this); _loadData(); }
@@ -28,8 +29,9 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> with Sing
   void dispose() { _tabController.dispose(); super.dispose(); }
   Future<void> _loadData() async { await Future.wait([_loadPurchases(), _loadWallet()]); }
   Future<void> _loadPurchases() async {
+    setState(() { _purchasesError = null; });
     try { final p = await _purchaseService.getMyPurchases(); if (mounted) setState(() { _purchases = p; _loadingPurchases = false; }); }
-    catch (e) { if (mounted) setState(() => _loadingPurchases = false); }
+    catch (e) { if (mounted) setState(() { _loadingPurchases = false; _purchasesError = e.toString(); }); }
   }
   Future<void> _loadWallet() async {
     try {
@@ -57,6 +59,14 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> with Sing
 
   Widget _buildPurchasesTab() {
     if (_loadingPurchases) return Center(child: CircularProgressIndicator(color: LG.accent));
+    if (_purchasesError != null) return Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+      Icon(Icons.error_outline, size: 48, color: LG.red), const SizedBox(height: 12),
+      Text('Ошибка загрузки', style: LG.font(color: LG.red, size: 16, weight: FontWeight.w700)), const SizedBox(height: 8),
+      Text(_purchasesError!, style: LG.font(color: LG.textMuted, size: 12), textAlign: TextAlign.center), const SizedBox(height: 16),
+      GestureDetector(onTap: _loadPurchases, child: Container(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        decoration: BoxDecoration(color: LG.accent.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10), border: Border.all(color: LG.accent.withValues(alpha: 0.4))),
+        child: Text('Повторить', style: LG.font(color: LG.accent, weight: FontWeight.w700)))),
+    ])));
     if (_purchases.isEmpty) return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
       Icon(Icons.shopping_bag_outlined, size: 64, color: LG.textMuted), const SizedBox(height: 12),
       Text('Нет покупок', style: LG.font(color: LG.textMuted, size: 16)),

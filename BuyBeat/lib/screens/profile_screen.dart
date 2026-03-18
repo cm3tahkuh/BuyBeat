@@ -319,6 +319,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 16),
                 menuPanel,
               ],
+              if (_user!.isProducer || _user!.isAdmin) ...[
               const SizedBox(height: 32),
               Text('Мои биты', style: LG.h1),
               const SizedBox(height: 14),
@@ -336,13 +337,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   return _RealBeatCard(
                     beat: beat,
                     onTap: () async {
+                      AudioPlayerService.instance.setQueue(_myBeats);
                       final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => BeatDetailScreen(beat: beat)));
                       if (result == 'deleted' || result == 'updated') _loadUserData();
                     },
                     onEdit: () => _editBeat(beat),
                     onDelete: () => _deleteBeat(beat),
+                    onPlay: () {
+                      AudioPlayerService.instance.setQueue(_myBeats);
+                      AudioPlayerService.instance.play(beat);
+                    },
                   );
-                }),              // Bottom padding for floating nav bar
+                }),
+              ],              // Bottom padding for floating nav bar
               const SizedBox(height: 120),            ]),
           )),
         );
@@ -374,8 +381,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 }
 
 class _RealBeatCard extends StatefulWidget {
-  final Beat beat; final VoidCallback? onTap; final VoidCallback? onEdit; final VoidCallback? onDelete;
-  const _RealBeatCard({required this.beat, this.onTap, this.onEdit, this.onDelete});
+  final Beat beat; final VoidCallback? onTap; final VoidCallback? onEdit; final VoidCallback? onDelete; final VoidCallback? onPlay;
+  const _RealBeatCard({required this.beat, this.onTap, this.onEdit, this.onDelete, this.onPlay});
   @override State<_RealBeatCard> createState() => _RealBeatCardState();
 }
 
@@ -431,6 +438,7 @@ class _RealBeatCardState extends State<_RealBeatCard> {
             Positioned.fill(child: AnimatedOpacity(opacity: isHovered ? 1 : 0, duration: const Duration(milliseconds: 200),
               child: Container(decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.4), borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
                 child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  if (widget.onPlay != null) ...[_hoverButton(Icons.play_arrow_rounded, LG.accent, widget.onPlay!), const SizedBox(height: 10)],
                   Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                     if (widget.onEdit != null) _hoverButton(Icons.edit, LG.accent, widget.onEdit!),
                     const SizedBox(width: 12),

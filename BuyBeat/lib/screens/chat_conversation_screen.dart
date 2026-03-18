@@ -45,8 +45,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   void initState() {
     super.initState();
     _loadMessages();
-    // Опрос новых сообщений каждые 3 секунды
-    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) => _pollMessages());
+    // Опрос новых сообщений каждые 10 секунд
+    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) => _pollMessages());
   }
 
   @override
@@ -88,7 +88,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     if (_isSending || _isPolling) return;
     _isPolling = true;
     try {
-      final msgs = await _chatService.getChatMessages(widget.chat.id, pageSize: 200);
+      final msgs = await _chatService.getChatMessages(widget.chat.id, pageSize: 100);
       if (mounted) {
         final didGrow = msgs.length != _messages.length;
         setState(() => _messages = msgs);
@@ -177,19 +177,19 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                 children: [
                   _attachOption(Icons.image, 'Фото', LG.blue, () {
                     Navigator.pop(ctx);
-                    _pickAndSendFile(FileType.image);
+                    _pickAndSendFile(FileType.custom, extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic']);
                   }),
                   _attachOption(Icons.audiotrack, 'Аудио', LG.orange, () {
                     Navigator.pop(ctx);
-                    _pickAndSendFile(FileType.audio);
+                    _pickAndSendFile(FileType.custom, extensions: ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma']);
                   }),
                   _attachOption(Icons.videocam, 'Видео', LG.red, () {
                     Navigator.pop(ctx);
-                    _pickAndSendFile(FileType.video);
+                    _pickAndSendFile(FileType.custom, extensions: ['mp4', 'mov', 'avi', 'webm', 'mkv', 'flv', '3gp']);
                   }),
                   _attachOption(Icons.description, 'Документ', LG.accent, () {
                     Navigator.pop(ctx);
-                    _pickAndSendFile(FileType.any);
+                    _pickAndSendFile(FileType.any, asDocument: true);
                   }),
                 ],
               ),
@@ -226,10 +226,11 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     );
   }
 
-  Future<void> _pickAndSendFile(FileType type) async {
+  Future<void> _pickAndSendFile(FileType type, {List<String>? extensions, bool asDocument = false}) async {
     try {
       final result = await FilePicker.platform.pickFiles(
         type: type,
+        allowedExtensions: extensions,
         withData: true,
         allowMultiple: false,
       );
@@ -244,6 +245,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         chatId: widget.chat.id,
         bytes: file.bytes!,
         fileName: file.name,
+        text: asDocument ? '__doc__' : null,
       );
 
       if (mounted) {
@@ -265,8 +267,18 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
   Future<void> _openFileUrl(String url) async {
     final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    try {
+      await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+    } catch (_) {
+      try {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Не удалось открыть файл')),
+          );
+        }
+      }
     }
   }
 
@@ -500,8 +512,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
               ),
             if (msg.text != null && msg.text!.isNotEmpty) const SizedBox(height: 6),
           ],
-          // Текст сообщения
-          if (msg.text != null && msg.text!.isNotEmpty)
+          // Текст сообщения (скрываем маркер __doc__)
+          if (msg.text != null && msg.text!.isNotEmpty && msg.text != '__doc__')
             Text(msg.text!, style: LG.font(color: isMe ? const Color(0xFF0A0A0F) : Colors.white, size: 14)),
           const SizedBox(height: 4),
           Text(
@@ -545,7 +557,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
   /// Рендер файлового вложения в зависимости от типа
   Widget _buildFileContent(Message msg, bool isMe) {
-    if (msg.isImage) return _buildImageAttachment(msg);
+    final sentAsDoc = msg.text == '__doc__';
+    if (msg.isImage && !sentAsDoc) return _buildImageAttachment(msg);
     if (msg.isAudio) return _buildAudioAttachment(msg, isMe);
     if (msg.isVideo) return _buildVideoAttachment(msg, isMe);
     return _buildDocumentAttachment(msg, isMe);

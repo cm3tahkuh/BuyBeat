@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/strapi_config.dart';
 
@@ -155,6 +156,7 @@ class StrapiService {
   Future<List<Map<String, dynamic>>> uploadFileBytes({
     required List<int> bytes,
     required String fileName,
+    String mimeType = 'application/octet-stream',
   }) async {
     final request = http.MultipartRequest(
       'POST',
@@ -170,6 +172,7 @@ class StrapiService {
         'files',
         bytes,
         filename: fileName,
+        contentType: MediaType.parse(mimeType),
       ),
     );
 

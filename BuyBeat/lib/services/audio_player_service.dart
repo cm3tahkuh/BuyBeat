@@ -73,21 +73,20 @@ class AudioPlayerService {
 
   ProcessingState get processingState => _player.processingState;
 
-  /// Play a beat. Stops any currently playing beat first.
-  /// Auto-advance to next track when current one finishes
-  void _setupAutoAdvance() {
-    _player.playerStateStream.listen((state) {
-      if (state.processingState == ProcessingState.completed && _repeatMode != RepeatMode.one) {
-        if (hasNext || _repeatMode == RepeatMode.all) {
-          skipTrack(1);
-        }
-      }
-    });
-  }
+  /// Auto-advance (only set up once for the singleton lifetime)
   bool _autoAdvanceSetUp = false;
 
   Future<void> play(Beat beat) async {
-    if (!_autoAdvanceSetUp) { _setupAutoAdvance(); _autoAdvanceSetUp = true; }
+    if (!_autoAdvanceSetUp) {
+      _autoAdvanceSetUp = true;
+      _player.playerStateStream.listen((state) {
+        if (state.processingState == ProcessingState.completed && _repeatMode != RepeatMode.one) {
+          if (hasNext || _repeatMode == RepeatMode.all) {
+            skipTrack(1);
+          }
+        }
+      });
+    }
     _currentBeat = beat;
     final url = beat.audioPreviewUrl;
     if (url.isEmpty) return;

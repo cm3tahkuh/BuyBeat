@@ -57,6 +57,7 @@ class _CatalogLandingPageState extends State<CatalogLandingPage> {
   String? selectedGenre;
   String? selectedMood;
   RangeValues bpm = const RangeValues(10, 400);
+  final Set<String> _selectedTags = {};
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
@@ -136,7 +137,9 @@ class _CatalogLandingPageState extends State<CatalogLandingPage> {
         b.bpm?.toString(),
         ...b.tagNames,
       ].any((field) => field != null && field.toLowerCase().contains(q));
-      return byGenre && byMood && byBpm && bySearch;
+      final byTag = _selectedTags.isEmpty ||
+          _selectedTags.any((t) => b.tagNames.map((n) => n.toLowerCase()).contains(t.toLowerCase()));
+      return byGenre && byMood && byBpm && bySearch && byTag;
     }).toList();
   }
 
@@ -225,12 +228,12 @@ class _CatalogLandingPageState extends State<CatalogLandingPage> {
           TextField(
             controller: _searchController,
             style: LG.body,
-            onChanged: (v) => setState(() => _searchQuery = v),
+            onChanged: (v) => setState(() { _searchQuery = v; _syncQueue(); }),
             decoration: InputDecoration(
               hintText: 'Поиск по тегам, настроению, тональности, BPM...',
               prefixIcon: Icon(Icons.search, color: LG.textMuted),
               suffixIcon: _searchQuery.isNotEmpty ? GestureDetector(
-                onTap: () => setState(() { _searchController.clear(); _searchQuery = ''; }),
+                onTap: () => setState(() { _searchController.clear(); _searchQuery = ''; _syncQueue(); }),
                 child: Icon(Icons.close, color: LG.textMuted, size: 20),
               ) : null,
             ),
@@ -263,7 +266,7 @@ class _CatalogLandingPageState extends State<CatalogLandingPage> {
           final g = _genres[i];
           final sel = selectedGenre == g.name;
           return GestureDetector(
-            onTap: () => setState(() => selectedGenre = selectedGenre == g.name ? null : g.name),
+            onTap: () => setState(() { selectedGenre = selectedGenre == g.name ? null : g.name; _syncQueue(); }),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               child: GlassPanel(
@@ -294,12 +297,22 @@ class _CatalogLandingPageState extends State<CatalogLandingPage> {
   Widget _buildTags() {
     return Wrap(
       spacing: 8, runSpacing: 8,
-      children: _tags.map((tag) => GlassChip(label: '#${tag.name}')).toList(),
+      children: _tags.map((tag) {
+        final sel = _selectedTags.contains(tag.name);
+        return GlassChip(
+          label: '#${tag.name}',
+          selected: sel,
+          onTap: () => setState(() {
+            if (sel) { _selectedTags.remove(tag.name); } else { _selectedTags.add(tag.name); }
+            _syncQueue();
+          }),
+        );
+      }).toList(),
     );
   }
 
   Widget _buildFilters() {
-    final bool hasActiveFilter = selectedGenre != null || selectedMood != null || bpm.start > 10 || bpm.end < 400;
+    final bool hasActiveFilter = selectedGenre != null || selectedMood != null || bpm.start > 10 || bpm.end < 400 || _selectedTags.isNotEmpty;
     return GlassPanel(
       padding: const EdgeInsets.all(14),
       borderRadius: LG.radiusM,
@@ -312,7 +325,7 @@ class _CatalogLandingPageState extends State<CatalogLandingPage> {
               const Spacer(),
               if (hasActiveFilter)
                 GestureDetector(
-                  onTap: () => setState(() { selectedGenre = null; selectedMood = null; bpm = const RangeValues(10, 400); }),
+                  onTap: () => setState(() { selectedGenre = null; selectedMood = null; bpm = const RangeValues(10, 400); _selectedTags.clear(); _syncQueue(); }),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(color: LG.red.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
@@ -334,7 +347,7 @@ class _CatalogLandingPageState extends State<CatalogLandingPage> {
                   selectedGenre,
                   _genres.map((g) => g.name).toList(),
                   _genres.map((g) => g.name).toList(),
-                  (v) => setState(() => selectedGenre = v),
+                  (v) => setState(() { selectedGenre = v; _syncQueue(); }),
                 ),
               ),
               const SizedBox(width: 10),
@@ -344,7 +357,7 @@ class _CatalogLandingPageState extends State<CatalogLandingPage> {
                   selectedMood,
                   _moodMap.keys.toList(),
                   _moodMap.values.toList(),
-                  (v) => setState(() => selectedMood = v),
+                  (v) => setState(() { selectedMood = v; _syncQueue(); }),
                 ),
               ),
             ],
@@ -362,7 +375,7 @@ class _CatalogLandingPageState extends State<CatalogLandingPage> {
                   overlayColor: LG.accent.withValues(alpha: 0.15),
                   trackHeight: 3,
                 ),
-                child: RangeSlider(divisions: 39, min: 10, max: 400, values: bpm, onChanged: (v) => setState(() => bpm = v)),
+                child: RangeSlider(divisions: 39, min: 10, max: 400, values: bpm, onChanged: (v) => setState(() { bpm = v; _syncQueue(); })),
               ),
             ),
             const SizedBox(width: 6),
@@ -404,12 +417,15 @@ class _CatalogLandingPageState extends State<CatalogLandingPage> {
       itemBuilder: (_, i) {
         final b = filtered[i];
         final isCurrent = _nowPlaying?.id == b.id;
-        return _BeatCard(
+        return RepaintBoundary(child: _BeatCard(
           beat: b,
           isCurrentlyPlaying: isCurrent && _isPlaying,
           onPlay: () => _playBeat(b),
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => BeatDetailScreen(beat: b, onMessageProducer: widget.onMessageProducer))),
-        );
+          onTap: () async {
+            final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => BeatDetailScreen(beat: b, onMessageProducer: widget.onMessageProducer)));
+            if (result == 'updated' || result == 'deleted') _loadData();
+          },
+        ));
       },
     );
   }

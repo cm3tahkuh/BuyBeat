@@ -116,7 +116,7 @@ class _BeatMarketplaceAppState extends State<BeatMarketplaceApp> {
                 offstage: _selectedIndex != i,
                 child: TickerMode(
                   enabled: _selectedIndex == i,
-                  child: screens[i],
+                  child: RepaintBoundary(child: screens[i]),
                 ),
               );
             }),
@@ -136,7 +136,7 @@ class _BeatMarketplaceAppState extends State<BeatMarketplaceApp> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(28),
               child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   decoration: BoxDecoration(

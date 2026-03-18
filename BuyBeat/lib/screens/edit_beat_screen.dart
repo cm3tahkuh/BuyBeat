@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../config/glass_theme.dart';
 import '../models/beat.dart';
 import '../models/genre.dart';
 import '../models/tag.dart';
@@ -186,55 +187,12 @@ class _EditBeatScreenState extends State<EditBeatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0A0A0F),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF0A0A0F),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Row(
-          children: [
-            const Icon(Icons.edit, color: Color(0xFF8B5CF6), size: 22),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Редактировать бит',
-                style: GoogleFonts.manrope(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          if (!_isLoading)
-            TextButton.icon(
-              onPressed: _isSaving ? null : _saveBeat,
-              icon: _isSaving
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF8B5CF6)),
-                    )
-                  : const Icon(Icons.check, color: Color(0xFF22C55E), size: 20),
-              label: Text(
-                'Сохранить',
-                style: GoogleFonts.manrope(
-                  color: const Color(0xFF22C55E),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-        ],
+    return GlassScaffold(
+      appBar: GlassAppBar(
+        title: 'Редактировать бит',
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF8B5CF6)))
+          ? Center(child: CircularProgressIndicator(color: LG.accent))
           : SingleChildScrollView(
               padding: const EdgeInsets.all(24),
               child: Form(
@@ -365,29 +323,11 @@ class _EditBeatScreenState extends State<EditBeatScreen> {
                     const SizedBox(height: 16),
 
                     // --- Save button ---
-                    SizedBox(
-                      width: double.infinity,
-                      height: 56,
-                      child: ElevatedButton.icon(
-                        onPressed: _isSaving ? null : _saveBeat,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF8B5CF6),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          elevation: 0,
-                        ),
-                        icon: _isSaving
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                              )
-                            : const Icon(Icons.save, size: 22),
-                        label: Text(
-                          'Сохранить изменения',
-                          style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.w700),
-                        ),
-                      ),
+                    GlassButton(
+                      text: 'Сохранить изменения',
+                      icon: Icons.save,
+                      isLoading: _isSaving,
+                      onTap: _isSaving ? null : _saveBeat,
                     ),
                     const SizedBox(height: 40),
                   ],
@@ -404,10 +344,10 @@ class _EditBeatScreenState extends State<EditBeatScreen> {
       children: [
         Text(
           title,
-          style: GoogleFonts.manrope(color: Colors.grey.shade300, fontSize: 14, fontWeight: FontWeight.w600),
+          style: LG.font(color: LG.textSecondary, size: 14, weight: FontWeight.w600),
         ),
         if (required)
-          Text(' *', style: GoogleFonts.manrope(color: const Color(0xFFEF4444), fontSize: 14, fontWeight: FontWeight.w700)),
+          Text(' *', style: LG.font(color: LG.red, size: 14, weight: FontWeight.w700)),
       ],
     );
   }
@@ -424,16 +364,16 @@ class _EditBeatScreenState extends State<EditBeatScreen> {
       keyboardType: keyboardType,
       inputFormatters: inputFormatters,
       validator: validator,
-      style: GoogleFonts.manrope(color: Colors.white, fontSize: 15),
+      style: LG.font(size: 15),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: GoogleFonts.manrope(color: Colors.grey.shade600),
+        hintStyle: LG.font(color: LG.textMuted, size: 15),
         filled: true,
-        fillColor: const Color(0xFF16161F),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade800)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade800)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF8B5CF6))),
-        errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFEF4444))),
+        fillColor: LG.bgLight,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: LG.border)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: LG.border)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: LG.accent)),
+        errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: LG.red)),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
     );
@@ -449,17 +389,17 @@ class _EditBeatScreenState extends State<EditBeatScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF16161F),
+        color: LG.bgLight,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade800),
+        border: Border.all(color: LG.border),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: value,
-          hint: Text(hint, style: GoogleFonts.manrope(color: Colors.grey.shade600)),
+          hint: Text(hint, style: LG.font(color: LG.textMuted, size: 15)),
           isExpanded: true,
-          dropdownColor: const Color(0xFF1A1A2E),
-          style: GoogleFonts.manrope(color: Colors.white, fontSize: 15),
+          dropdownColor: LG.bgLight,
+          style: LG.font(size: 15),
           items: items.map((i) => DropdownMenuItem(value: i, child: Text(labelMap?[i] ?? i))).toList(),
           onChanged: onChanged,
         ),
@@ -475,19 +415,19 @@ class _EditBeatScreenState extends State<EditBeatScreen> {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFF8B5CF6).withOpacity(0.2) : const Color(0xFF16161F),
+          color: selected ? LG.accent.withValues(alpha: 0.15) : LG.bgLight,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: selected ? const Color(0xFF8B5CF6) : Colors.grey.shade800,
+            color: selected ? LG.accent : LG.border,
             width: selected ? 2 : 1,
           ),
         ),
         child: Text(
           label,
-          style: GoogleFonts.manrope(
-            color: selected ? const Color(0xFF8B5CF6) : Colors.grey.shade400,
-            fontSize: 14,
-            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+          style: LG.font(
+            color: selected ? LG.accent : LG.textSecondary,
+            size: 14,
+            weight: selected ? FontWeight.w700 : FontWeight.w500,
           ),
         ),
       ),
@@ -506,19 +446,19 @@ class _EditBeatScreenState extends State<EditBeatScreen> {
             duration: const Duration(milliseconds: 150),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
-              color: selected ? const Color(0xFF8B5CF6).withOpacity(0.2) : const Color(0xFF16161F),
+              color: selected ? LG.cyan.withValues(alpha: 0.15) : LG.bgLight,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: selected ? const Color(0xFF8B5CF6) : Colors.grey.shade800,
+                color: selected ? LG.cyan : LG.border,
                 width: selected ? 2 : 1,
               ),
             ),
             child: Text(
               genre.icon != null ? '${genre.icon} ${genre.name}' : genre.name,
-              style: GoogleFonts.manrope(
-                color: selected ? const Color(0xFF8B5CF6) : Colors.grey.shade400,
-                fontSize: 14,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              style: LG.font(
+                color: selected ? LG.cyan : LG.textSecondary,
+                size: 14,
+                weight: selected ? FontWeight.w700 : FontWeight.w500,
               ),
             ),
           ),

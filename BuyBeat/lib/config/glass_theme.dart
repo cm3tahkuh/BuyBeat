@@ -68,9 +68,9 @@ class LG {
   );
 
   // ─── Blur values ───────────────────────────────────────────────────
-  static const double blurLight = 10;
-  static const double blurMedium = 20;
-  static const double blurHeavy = 40;
+  static const double blurLight = 6;
+  static const double blurMedium = 12;
+  static const double blurHeavy = 18;
 
   // ─── Radii ─────────────────────────────────────────────────────────
   static const double radiusS = 12;

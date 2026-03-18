@@ -24,6 +24,7 @@ class _GlobalPlayerBarState extends State<GlobalPlayerBar> {
   StreamSubscription<PlayerState>? _playerSub;
   StreamSubscription<Duration>? _posSub;
   StreamSubscription<Duration?>? _durSub;
+  DateTime _lastPosUpdate = DateTime(2000);
 
   @override
   void initState() {
@@ -38,7 +39,11 @@ class _GlobalPlayerBarState extends State<GlobalPlayerBar> {
       }
     });
     _posSub = _audio.positionStream.listen((p) {
-      if (mounted) setState(() => _position = p);
+      if (!mounted) return;
+      final now = DateTime.now();
+      if (now.difference(_lastPosUpdate).inMilliseconds < 250) return;
+      _lastPosUpdate = now;
+      setState(() => _position = p);
     });
     _durSub = _audio.durationStream.listen((d) {
       if (mounted) setState(() => _duration = d ?? Duration.zero);
@@ -75,7 +80,7 @@ class _GlobalPlayerBarState extends State<GlobalPlayerBar> {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(28),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
           child: Container(
             decoration: BoxDecoration(
               color: const Color(0xFF101015).withValues(alpha: 0.85),

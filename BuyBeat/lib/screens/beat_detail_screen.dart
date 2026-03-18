@@ -38,17 +38,34 @@ class _BeatDetailScreenState extends State<BeatDetailScreen> {
   bool _loadingFiles = true;
   bool _isOwnBeat = false;
   Set<int> _purchasedBeatFileIds = {};
-  Beat get beat => widget.beat;
+  late Beat _beat = widget.beat;
+  Beat get beat => _beat;
+  bool _wasEdited = false;
   StreamSubscription<PlayerState>? _stateSub;
   StreamSubscription<Duration>? _posSub;
   StreamSubscription<Duration?>? _durSub;
+  DateTime _lastPosUpdate = DateTime(2000);
 
   @override
   void initState() {
     super.initState();
-    _stateSub = _audio.playerStateStream.listen((s) { if (!mounted) return; setState(() => _isPlaying = s.playing && s.processingState != ProcessingState.completed && _audio.currentBeat?.id == beat.id); });
-    _posSub = _audio.positionStream.listen((p) { if (mounted && _audio.currentBeat?.id == beat.id) setState(() => _position = p); });
-    _durSub = _audio.durationStream.listen((d) { if (mounted && _audio.currentBeat?.id == beat.id) setState(() => _duration = d); });
+    _stateSub = _audio.playerStateStream.listen((s) {
+      if (!mounted) return;
+      // Only rebuild if this beat is active
+      final nowPlaying = _audio.currentBeat?.id == beat.id;
+      setState(() => _isPlaying = nowPlaying && s.playing && s.processingState != ProcessingState.completed);
+    });
+    _posSub = _audio.positionStream.listen((p) {
+      if (!mounted || _audio.currentBeat?.id != beat.id) return;
+      // Throttle to max 4fps to avoid overwhelming the main thread
+      final now = DateTime.now();
+      if (now.difference(_lastPosUpdate).inMilliseconds < 250) return;
+      _lastPosUpdate = now;
+      setState(() => _position = p);
+    });
+    _durSub = _audio.durationStream.listen((d) {
+      if (mounted && _audio.currentBeat?.id == beat.id) setState(() => _duration = d);
+    });
     _loadBeatFiles();
     _checkOwnership();
     _loadPurchasedIds();
@@ -98,7 +115,17 @@ class _BeatDetailScreenState extends State<BeatDetailScreen> {
       context,
       MaterialPageRoute(builder: (_) => EditBeatScreen(beat: beat)),
     );
-    if (result == true && mounted) Navigator.pop(context, 'updated');
+    if (result == true && mounted) {
+      _wasEdited = true;
+      // Перезагружаем бит с сервера, чтобы теги и другие данные обновились
+      try {
+        final fresh = await BeatService.instance.getBeatById(beat.id);
+        if (fresh != null && mounted) {
+          setState(() => _beat = fresh);
+          _loadBeatFiles(); // перезагрузить файлы тоже
+        }
+      } catch (_) {}
+    }
   }
 
   Future<void> _deleteBeat() async {
@@ -136,7 +163,12 @@ class _BeatDetailScreenState extends State<BeatDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return GlassScaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) Navigator.pop(context, _wasEdited ? 'updated' : null);
+      },
+      child: GlassScaffold(
       appBar: GlassAppBar(
         title: 'Детали бита',
       ),
@@ -178,6 +210,7 @@ class _BeatDetailScreenState extends State<BeatDetailScreen> {
           ]),
         ),
       ),
+    ),
     );
   }
 
@@ -249,7 +282,10 @@ class _BeatDetailScreenState extends State<BeatDetailScreen> {
         ])
       else
         Row(children: [
-          Expanded(child: GlassButton(text: cart.isEmpty ? 'Корзина' : 'Корзина (${cart.itemCount})', icon: Icons.shopping_cart, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CartScreen())))),
+          Expanded(child: GlassButton(text: cart.isEmpty ? 'Корзина' : 'Корзина (${cart.itemCount})', icon: Icons.shopping_cart, onTap: () async {
+          await Navigator.push(context, MaterialPageRoute(builder: (_) => const CartScreen()));
+          if (mounted) setState(() {});
+        })),
           const SizedBox(width: 12),
           Expanded(child: GestureDetector(
             onTap: () {
@@ -303,7 +339,7 @@ class _BeatDetailScreenState extends State<BeatDetailScreen> {
                   Text('Куплено', style: LG.font(color: LG.green, weight: FontWeight.w700, size: 12)),
                 ]),
               )
-            else if (f.enabled && !_isOwnBeat)
+            else if (f.enabled)
               GestureDetector(
                 onTap: () {
                   if (inCart) cart.removeItem('${beat.id}_${f.id}'); else cart.addItem(beat, f);
