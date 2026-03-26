@@ -47,6 +47,9 @@ class StrapiService {
   /// Проверка авторизации
   bool get isAuthenticated => _token != null;
   
+  /// JWT-токен (для WebSocket авторизации)
+  String? get token => _token;
+  
   /// ID текущего пользователя
   int? get currentUserId => _userId;
   

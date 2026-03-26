@@ -178,8 +178,8 @@ class _BeatDetailScreenState extends State<BeatDetailScreen> {
             const SizedBox(height: 60),
             // Cover
             Stack(children: [
-              AspectRatio(aspectRatio: 16 / 9, child: beat.coverUrl.isNotEmpty
-                ? Image.network(beat.coverUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: LG.bgLight, child: Center(child: Icon(Icons.music_note, color: LG.textMuted, size: 64))))
+              AspectRatio(aspectRatio: 16 / 9, child: beat.coverUrl != null && beat.coverUrl!.isNotEmpty
+                ? Image.network(beat.coverUrl!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: LG.bgLight, child: Center(child: Icon(Icons.music_note, color: LG.textMuted, size: 64))))
                 : Container(color: LG.bgLight, child: Center(child: Icon(Icons.music_note, color: LG.textMuted, size: 64)))),
               Positioned.fill(child: Container(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, LG.bg], stops: const [0.5, 1.0])))),
             ]),

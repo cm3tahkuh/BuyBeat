@@ -432,8 +432,8 @@ class _RealBeatCardState extends State<_RealBeatCard> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(child: Stack(children: [
             Positioned.fill(child: ClipRRect(borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-              child: beat.coverUrl.isNotEmpty
-                ? Image.network(beat.coverUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: LG.bgLight, child: const Center(child: Icon(Icons.music_note, color: Colors.white38, size: 36))))
+              child: beat.coverUrl != null && beat.coverUrl!.isNotEmpty
+                ? Image.network(beat.coverUrl!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: LG.bgLight, child: const Center(child: Icon(Icons.music_note, color: Colors.white38, size: 36))))
                 : Container(color: LG.bgLight, child: const Center(child: Icon(Icons.music_note, color: Colors.white38, size: 36))))),
             Positioned.fill(child: AnimatedOpacity(opacity: isHovered ? 1 : 0, duration: const Duration(milliseconds: 200),
               child: Container(decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.4), borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),

@@ -9,6 +9,8 @@ import '../config/glass_theme.dart';
 import '../models/chat.dart';
 import '../models/message.dart';
 import '../services/chat_service.dart';
+import '../services/websocket_service.dart';
+import '../services/in_app_notification_service.dart';
 
 /// Экран переписки в конкретном чате
 class ChatConversationScreen extends StatefulWidget {
@@ -36,8 +38,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   final _mySentIds = <int>{};
   bool _isLoading = true;
   bool _isSending = false;
-  bool _isPolling = false;
-  Timer? _pollTimer;
+  StreamSubscription? _wsSub;
 
   String get _otherName => widget.chat.otherParticipantName(widget.currentUserId);
 
@@ -45,21 +46,29 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   void initState() {
     super.initState();
     _loadMessages();
-    // Опрос новых сообщений каждые 10 секунд
-    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) => _pollMessages());
+    // Подписка на WebSocket-события новых сообщений
+    _wsSub = WebSocketService.instance.onNewMessage.listen(_onWsMessage);
+    // Сообщаем NotificationService что этот чат открыт
+    InAppNotificationService.instance.activeChatId = widget.chat.id;
+    InAppNotificationService.instance.activeChatDocumentId = widget.chat.documentId;
   }
 
   @override
   void dispose() {
-    _pollTimer?.cancel();
+    _wsSub?.cancel();
     _controller.dispose();
     _scrollController.dispose();
+    // Сбрасываем активный чат
+    InAppNotificationService.instance.activeChatId = null;
+    InAppNotificationService.instance.activeChatDocumentId = null;
     super.dispose();
   }
 
   Future<void> _loadMessages() async {
     try {
-      final msgs = await _chatService.getChatMessages(widget.chat.id, pageSize: 200);
+      final docId = widget.chat.documentId;
+      if (docId == null) throw Exception('Chat documentId is null');
+      final msgs = await _chatService.getChatMessages(docId, pageSize: 200);
       if (mounted) {
         setState(() {
           _messages = msgs;
@@ -76,7 +85,9 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   /// Тихая перезагрузка (без индикатора загрузки) — используется после отправки файла
   Future<void> _reloadMessages() async {
     try {
-      final msgs = await _chatService.getChatMessages(widget.chat.id, pageSize: 200);
+      final docId = widget.chat.documentId;
+      if (docId == null) return;
+      final msgs = await _chatService.getChatMessages(docId, pageSize: 200);
       if (mounted) {
         setState(() => _messages = msgs);
         _scrollToBottom();
@@ -84,18 +95,27 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     } catch (_) {}
   }
 
-  Future<void> _pollMessages() async {
-    if (_isSending || _isPolling) return;
-    _isPolling = true;
-    try {
-      final msgs = await _chatService.getChatMessages(widget.chat.id, pageSize: 100);
-      if (mounted) {
-        final didGrow = msgs.length != _messages.length;
-        setState(() => _messages = msgs);
-        if (didGrow) _scrollToBottom();
-      }
-    } catch (_) {} finally {
-      _isPolling = false;
+  /// Обработка нового сообщения через WebSocket
+  void _onWsMessage(WsNewMessageEvent event) {
+    // Игнорируем сообщения для другого чата (сопоставляем по documentId)
+    final myDocId = widget.chat.documentId;
+    if (myDocId != null && event.chatDocumentId != null) {
+      if (event.chatDocumentId != myDocId) return;
+    } else {
+      if (event.chatId != widget.chat.id) return;
+    }
+    // Игнорируем дубли (по id и documentId)
+    final eId = event.message.id;
+    final eDocId = event.message.documentId;
+    if (_messages.any((m) =>
+        m.id == eId ||
+        (eDocId != null && eDocId == m.documentId))) return;
+
+    if (mounted) {
+      setState(() {
+        _messages.add(event.message);
+      });
+      _scrollToBottom();
     }
   }
 
@@ -120,13 +140,18 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
     try {
       final msg = await _chatService.sendMessage(
-        chatId: widget.chat.id,
+        chatDocumentId: widget.chat.documentId!,
         text: text,
       );
       if (mounted) {
         setState(() {
           _mySentIds.add(msg.id);
-          _messages.add(msg);
+          // Дубль-проверка: WS мог уже добавить это сообщение пока шёл re-fetch
+          if (!_messages.any((m) =>
+              m.id == msg.id ||
+              (msg.documentId != null && msg.documentId == m.documentId))) {
+            _messages.add(msg);
+          }
           _isSending = false;
         });
         _scrollToBottom();
@@ -242,7 +267,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       setState(() => _isSending = true);
 
       final msg = await _chatService.sendFileBytes(
-        chatId: widget.chat.id,
+        chatDocumentId: widget.chat.documentId!,
         bytes: file.bytes!,
         fileName: file.name,
         text: asDocument ? '__doc__' : null,
@@ -537,7 +562,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             CircleAvatar(
               radius: 16,
               backgroundColor: LG.accent.withValues(alpha: 0.2),
-              backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+              backgroundImage: avatarUrl != null && avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
               child: avatarUrl == null
                   ? Text(initial,
                       style: LG.font(color: LG.accent, size: 12, weight: FontWeight.w700))

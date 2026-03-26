@@ -203,9 +203,9 @@ class _GlobalPlayerBarState extends State<GlobalPlayerBar> {
   }
 
   Widget _coverImg(double s) {
-    if (_nowPlaying!.coverUrl.isNotEmpty) {
+    if (_nowPlaying!.coverUrl != null && _nowPlaying!.coverUrl!.isNotEmpty) {
       return Image.network(
-        _nowPlaying!.coverUrl,
+        _nowPlaying!.coverUrl!,
         width: s, height: s, fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => _placeholder(s),
       );
@@ -353,8 +353,8 @@ class _NowPlayingSheetState extends State<_NowPlayingSheet> {
             child: ClipRRect(
               key: ValueKey(beat.id),
               borderRadius: BorderRadius.circular(20),
-              child: beat.coverUrl.isNotEmpty
-                  ? Image.network(beat.coverUrl, width: 240, height: 240, fit: BoxFit.cover,
+              child: beat.coverUrl != null && beat.coverUrl!.isNotEmpty
+                  ? Image.network(beat.coverUrl!, width: 240, height: 240, fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => _coverPh())
                   : _coverPh(),
             ),

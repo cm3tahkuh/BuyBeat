@@ -42,6 +42,11 @@ dependencies:
   pdf: ^3.12.0
   printing: ^5.14.2
   url_launcher: ^6.3.2
+  
+  # WebSocket для real-time уведомлений
+  web_socket_channel: ^3.0.2
+  flutter_local_notifications: ^21.0.0
+  web: ^1.1.1
 
 dev_dependencies:
   flutter_test:

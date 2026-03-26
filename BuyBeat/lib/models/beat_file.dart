@@ -40,8 +40,8 @@ class BeatFile {
   Map<String, dynamic> toJson() => _$BeatFileToJson(this);
   
   /// URL для скачивания файла
-  String get downloadUrl {
-    if (audioFile == null) return '';
+  String? get downloadUrl {
+    if (audioFile == null) return null;
     final url = audioFile!['url'] as String?;
     return StrapiConfig.getMediaUrl(url);
   }

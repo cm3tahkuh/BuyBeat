@@ -27,9 +27,16 @@ class StrapiConfig {
   static const String chats = '$apiUrl/chats';
   static const String messages = '$apiUrl/messages';
   
+  /// WebSocket URL (порт 1338 рядом со Strapi на 1337)
+  static String get wsUrl {
+    final uri = Uri.parse(baseUrl);
+    final wsScheme = uri.scheme == 'https' ? 'wss' : 'ws';
+    return '$wsScheme://${uri.host}:1338';
+  }
+  
   /// Получить полный URL для медиа файла
-  static String getMediaUrl(String? path) {
-    if (path == null || path.isEmpty) return '';
+  static String? getMediaUrl(String? path) {
+    if (path == null || path.isEmpty) return null;
     if (path.startsWith('http')) return path;
     return '$mediaUrl$path';
   }

@@ -464,8 +464,8 @@ class _BeatCardState extends State<_BeatCard> {
             Expanded(child: Stack(children: [
               Positioned.fill(child: ClipRRect(
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
-                child: widget.beat.coverUrl.isNotEmpty
-                    ? Image.network(widget.beat.coverUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _placeholder())
+                child: widget.beat.coverUrl != null && widget.beat.coverUrl!.isNotEmpty
+                    ? Image.network(widget.beat.coverUrl!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _placeholder())
                     : _placeholder(),
               )),
               // Gradient overlay for readability

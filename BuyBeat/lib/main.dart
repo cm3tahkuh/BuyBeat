@@ -8,6 +8,9 @@ import 'screens/chat_screen_real.dart';
 import 'screens/profile_screen.dart';
 import 'screens/cart_screen.dart';
 import 'services/strapi_service.dart';
+import 'services/websocket_service.dart';
+import 'services/in_app_notification_service.dart';
+import 'services/native_notification_service.dart';
 import 'widgets/global_player_bar.dart';
 
 void main() async {
@@ -17,8 +20,18 @@ void main() async {
   // Инициализация Strapi API сервиса
   print('🎵 Инициализация Strapi API...');
   try {
+    // Инициализируем нативные уведомления
+    await NativeNotificationService.instance.init();
+
     await StrapiService.instance.init();
     print('✅ Strapi API сервис инициализирован');
+    
+    // Подключаем WebSocket если есть токен
+    if (StrapiService.instance.isAuthenticated) {
+      WebSocketService.instance.connect();
+      InAppNotificationService.instance.start();
+      print('🔌 WebSocket подключение запущено');
+    }
   } catch (e) {
     print('❌ Ошибка инициализации Strapi: $e');
   }
@@ -79,6 +92,7 @@ class _BeatMarketplaceAppState extends State<BeatMarketplaceApp> {
     return MaterialApp(
       title: 'BuyBeats',
       debugShowCheckedModeBanner: false,
+      navigatorKey: InAppNotificationService.instance.navigatorKey,
       theme: LG.themeData(),
       routes: {
         '/home': (context) => _buildMainScreen(),

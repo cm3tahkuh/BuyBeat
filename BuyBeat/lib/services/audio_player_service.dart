@@ -89,7 +89,7 @@ class AudioPlayerService {
     }
     _currentBeat = beat;
     final url = beat.audioPreviewUrl;
-    if (url.isEmpty) return;
+    if (url == null || url.isEmpty) return;
     try {
       await _player.setUrl(url);
       await _player.play();
@@ -109,7 +109,7 @@ class AudioPlayerService {
           _player.processingState == ProcessingState.completed) {
         if (_currentBeat != null) {
           final url = _currentBeat!.audioPreviewUrl;
-          if (url.isNotEmpty) {
+          if (url != null && url.isNotEmpty) {
             try { await _player.setUrl(url); } catch (_) {}
           }
         }

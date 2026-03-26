@@ -44,12 +44,16 @@ class ChatService {
     final user = await AuthService().getCurrentUser();
     if (user == null) throw Exception('Не авторизован');
 
-    // Ищем существующий чат с этим пользователем
+    // Ищем существующий чат, в котором участвуют оба пользователя
     final response = await _strapi.get(
       StrapiConfig.chats,
       queryParams: {
-        'populate': '*',
-        'filters[users_permissions_users][id][\$eq]': user.id.toString(),
+        'populate[users_permissions_users][fields][0]': 'id',
+        'populate[users_permissions_users][fields][1]': 'username',
+        'populate[users_permissions_users][fields][2]': 'display_name',
+        'populate[users_permissions_users][populate]': 'avatar',
+        'filters[\$and][0][users_permissions_users][id][\$eq]': user.id.toString(),
+        'filters[\$and][1][users_permissions_users][id][\$eq]': otherUserId.toString(),
         'pagination[pageSize]': '100',
       },
     );
@@ -57,6 +61,7 @@ class ChatService {
     final items = StrapiService.parseList(response);
     for (final json in items) {
       final chat = Chat.fromJson(json);
+      // Доп. проверка на клиенте (на случай если фильтр вернул лишнее)
       if (chat.participants != null) {
         final ids = chat.participants!
             .where((p) => p is Map<String, dynamic>)
@@ -125,13 +130,13 @@ class ChatService {
 
   // ============ СООБЩЕНИЯ ============
 
-  /// Получить сообщения чата
-  Future<List<Message>> getChatMessages(int chatId, {int page = 1, int pageSize = 50}) async {
+  /// Получить сообщения чата (по documentId чата)
+  Future<List<Message>> getChatMessages(String chatDocumentId, {int page = 1, int pageSize = 50}) async {
     final response = await _strapi.get(
       StrapiConfig.messages,
       queryParams: {
         'populate': '*',
-        'filters[chat][id][\$eq]': chatId.toString(),
+        'filters[chat][documentId][\$eq]': chatDocumentId,
         'sort': 'createdAt:asc',
         'pagination[page]': page.toString(),
         'pagination[pageSize]': pageSize.toString(),
@@ -144,7 +149,7 @@ class ChatService {
 
   /// Отправить текстовое сообщение
   Future<Message> sendMessage({
-    required int chatId,
+    required String chatDocumentId,
     required String text,
   }) async {
     final user = await AuthService().getCurrentUser();
@@ -154,7 +159,7 @@ class ChatService {
       StrapiConfig.messages,
       body: {
         'data': {
-          'chat': chatId,
+          'chat': chatDocumentId,
           'users_permissions_user': user.id,
           'type': 'TEXT',
           'text': text,
@@ -163,24 +168,23 @@ class ChatService {
       },
     );
 
-    // Обновляем updatedAt чата (чтобы он поднялся вверх списка)
+    // Обновляем updatedAt чата
     try {
       await _strapi.put(
-        '${StrapiConfig.chats}/$chatId',
+        '${StrapiConfig.chats}/$chatDocumentId',
         body: {'data': {}},
       );
     } catch (_) {}
 
     final item = StrapiService.parseItem(response);
     if (item == null) throw Exception('Ошибка отправки сообщения');
-    final msgId = item['id'];
+    final msgRef = item['documentId'] as String? ?? item['id'].toString();
 
     // Re-fetch with populate to get full sender object
-    // Wrap in try/catch - silently fall back to POST response on any error
     Message? freshMsg;
     try {
       final freshResponse = await _strapi.get(
-        '${StrapiConfig.messages}/$msgId',
+        '${StrapiConfig.messages}/$msgRef',
         queryParams: {'populate': '*'},
       );
       final freshItem = StrapiService.parseItem(freshResponse);
@@ -191,14 +195,13 @@ class ChatService {
 
   /// Отправить файл
   Future<Message> sendFile({
-    required int chatId,
+    required String chatDocumentId,
     required String filePath,
     required String fileName,
   }) async {
     final user = await AuthService().getCurrentUser();
     if (user == null) throw Exception('Не авторизован');
 
-    // Загружаем файл
     final uploadResponse = await _strapi.uploadFile(filePath: filePath, fileName: fileName);
     final fileId = uploadResponse[0]['id'];
 
@@ -206,7 +209,7 @@ class ChatService {
       StrapiConfig.messages,
       body: {
         'data': {
-          'chat': chatId,
+          'chat': chatDocumentId,
           'users_permissions_user': user.id,
           'type': 'FILE',
           'file_attachment': fileId,
@@ -217,19 +220,19 @@ class ChatService {
 
     try {
       await _strapi.put(
-        '${StrapiConfig.chats}/$chatId',
+        '${StrapiConfig.chats}/$chatDocumentId',
         body: {'data': {}},
       );
     } catch (_) {}
 
     final item = StrapiService.parseItem(response);
     if (item == null) throw Exception('Ошибка отправки файла');
-    final msgId = item['id'];
+    final msgRef = item['documentId'] as String? ?? item['id'].toString();
 
     Message? freshMsg;
     try {
       final freshResponse = await _strapi.get(
-        '${StrapiConfig.messages}/$msgId',
+        '${StrapiConfig.messages}/$msgRef',
         queryParams: {'populate': '*'},
       );
       final freshItem = StrapiService.parseItem(freshResponse);
@@ -240,7 +243,7 @@ class ChatService {
 
   /// Отправить файл из bytes (web)
   Future<Message> sendFileBytes({
-    required int chatId,
+    required String chatDocumentId,
     required List<int> bytes,
     required String fileName,
     String? text,
@@ -256,7 +259,7 @@ class ChatService {
       StrapiConfig.messages,
       body: {
         'data': {
-          'chat': chatId,
+          'chat': chatDocumentId,
           'users_permissions_user': user.id,
           'type': 'FILE',
           if (text != null) 'text': text,
@@ -268,19 +271,19 @@ class ChatService {
 
     try {
       await _strapi.put(
-        '${StrapiConfig.chats}/$chatId',
+        '${StrapiConfig.chats}/$chatDocumentId',
         body: {'data': {}},
       );
     } catch (_) {}
 
     final item = StrapiService.parseItem(response);
     if (item == null) throw Exception('Ошибка отправки файла');
-    final msgId = item['id'];
+    final msgRef = item['documentId'] as String? ?? item['id'].toString();
 
     Message? freshMsg;
     try {
       final freshResponse = await _strapi.get(
-        '${StrapiConfig.messages}/$msgId',
+        '${StrapiConfig.messages}/$msgRef',
         queryParams: {'populate': '*'},
       );
       final freshItem = StrapiService.parseItem(freshResponse);

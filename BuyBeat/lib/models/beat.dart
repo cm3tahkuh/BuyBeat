@@ -59,15 +59,15 @@ class Beat {
   Map<String, dynamic> toJson() => _$BeatToJson(this);
   
   /// URL обложки
-  String get coverUrl {
-    if (cover == null) return '';
+  String? get coverUrl {
+    if (cover == null) return null;
     final url = cover!['url'] as String?;
     return StrapiConfig.getMediaUrl(url);
   }
   
   /// URL превью аудио
-  String get audioPreviewUrl {
-    if (audioPreview == null) return '';
+  String? get audioPreviewUrl {
+    if (audioPreview == null) return null;
     final url = audioPreview!['url'] as String?;
     return StrapiConfig.getMediaUrl(url);
   }

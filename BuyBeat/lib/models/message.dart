@@ -7,6 +7,7 @@ part 'message.g.dart';
 @JsonSerializable()
 class Message {
   final int id;
+  final String? documentId;
   @JsonKey(name: 'type')
   final MessageType messageType;
   final String? text;
@@ -25,6 +26,7 @@ class Message {
 
   Message({
     required this.id,
+    this.documentId,
     this.messageType = MessageType.text,
     this.text,
     this.fileAttachment,

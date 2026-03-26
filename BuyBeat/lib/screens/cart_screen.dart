@@ -54,8 +54,8 @@ class _CartScreenState extends State<CartScreen> {
                   margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(12), borderRadius: 16,
                   child: Row(children: [
                     ClipRRect(borderRadius: BorderRadius.circular(10), child: SizedBox(width: 56, height: 56,
-                      child: item.beat.coverUrl.isNotEmpty
-                        ? Image.network(item.beat.coverUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: LG.bgLight, child: const Icon(Icons.music_note, color: Colors.white38)))
+                      child: item.beat.coverUrl != null && item.beat.coverUrl!.isNotEmpty
+                        ? Image.network(item.beat.coverUrl!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: LG.bgLight, child: const Icon(Icons.music_note, color: Colors.white38)))
                         : Container(color: LG.bgLight, child: const Icon(Icons.music_note, color: Colors.white38)),
                     )),
                     const SizedBox(width: 12),

@@ -2,6 +2,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
 import '../config/strapi_config.dart';
 import 'strapi_service.dart';
+import 'websocket_service.dart';
+import 'in_app_notification_service.dart';
 
 /// Сервис аутентификации через Strapi API
 class AuthService {
@@ -96,6 +98,10 @@ class AuthService {
       await _strapi.saveToken(jwt, userId);
       _cachedUser = User.fromJson(userData);
       
+      // Подключаем WebSocket после логина
+      WebSocketService.instance.connect();
+      InAppNotificationService.instance.start();
+      
       // Убираем гостевой режим если был
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('is_guest');
@@ -138,6 +144,10 @@ class AuthService {
 
       _cachedUser = await _fetchCurrentUser();
 
+      // Подключаем WebSocket после регистрации
+      WebSocketService.instance.connect();
+      InAppNotificationService.instance.start();
+
       // Убираем гостевой режим если был
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('is_guest');
@@ -167,6 +177,10 @@ class AuthService {
 
   /// Выход
   Future<void> signOut() async {
+    // Отключаем WebSocket и уведомления
+    WebSocketService.instance.disconnect();
+    InAppNotificationService.instance.stop();
+    
     await _strapi.clearToken();
     _cachedUser = null;
     
