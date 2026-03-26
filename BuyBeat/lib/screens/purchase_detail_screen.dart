@@ -280,7 +280,7 @@ class _PurchaseDetailScreenState extends State<PurchaseDetailScreen> {
 
   Widget _buildInfoSection() {
     final dateStr = purchase.createdAt != null
-        ? DateFormat('dd MMMM yyyy, HH:mm', 'ru').format(purchase.createdAt!)
+        ? DateFormat('dd MMMM yyyy, HH:mm', 'ru').format(purchase.createdAt!.toLocal())
         : '—';
     final statusColor = _statusColor(purchase.purchaseStatus);
 

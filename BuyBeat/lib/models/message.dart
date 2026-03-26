@@ -18,6 +18,10 @@ class Message {
   final Map<String, dynamic>? chat;
   @JsonKey(name: 'users_permissions_user')
   final Map<String, dynamic>? sender;
+
+  /// Сообщение, на которое отвечаем (reply-to)
+  @JsonKey(name: 'reply_to')
+  final Map<String, dynamic>? replyTo;
   
   @JsonKey(name: 'createdAt')
   final DateTime? createdAt;
@@ -32,6 +36,7 @@ class Message {
     this.fileAttachment,
     this.chat,
     this.sender,
+    this.replyTo,
     this.createdAt,
     this.updatedAt,
   });
@@ -101,6 +106,43 @@ class Message {
     // Некоторые профили хранят avatar_url напрямую
     final url = sender!['avatar_url'] as String?;
     return StrapiConfig.getMediaUrl(url);
+  }
+
+  // ─── Reply-to helpers ───
+
+  /// Есть ли ответ на сообщение
+  bool get hasReply => replyTo != null && replyTo!.containsKey('id');
+
+  /// ID сообщения, на которое отвечаем
+  int? get replyToId => replyTo?['id'] as int?;
+
+  /// documentId сообщения, на которое отвечаем
+  String? get replyToDocumentId => replyTo?['documentId'] as String?;
+
+  /// Текст сообщения, на которое отвечаем
+  String? get replyToText => replyTo?['text'] as String?;
+
+  /// Тип сообщения-оригинала
+  bool get replyToIsFile {
+    final t = replyTo?['type'] as String?;
+    return t == 'FILE';
+  }
+
+  /// Имя отправителя оригинального сообщения
+  String? get replyToSenderName {
+    final s = replyTo?['users_permissions_user'];
+    if (s is Map<String, dynamic>) {
+      return s['display_name'] as String? ?? s['username'] as String?;
+    }
+    return null;
+  }
+
+  /// ID отправителя оригинального сообщения
+  int? get replyToSenderId {
+    final s = replyTo?['users_permissions_user'];
+    if (s is Map<String, dynamic>) return s['id'] as int?;
+    if (s is int) return s;
+    return null;
   }
 
   factory Message.fromJson(Map<String, dynamic> json) => _$MessageFromJson(json);

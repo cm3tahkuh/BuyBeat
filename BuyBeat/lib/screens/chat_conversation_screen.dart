@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -39,6 +40,9 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   bool _isLoading = true;
   bool _isSending = false;
   StreamSubscription? _wsSub;
+
+  /// Сообщение, на которое отвечаем (reply-to)
+  Message? _replyToMessage;
 
   String get _otherName => widget.chat.otherParticipantName(widget.currentUserId);
 
@@ -136,12 +140,27 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     if (text.isEmpty) return;
     _controller.clear();
 
-    setState(() => _isSending = true);
+    final replyDocId = _replyToMessage?.documentId;
+    // Сохраняем данные reply-to для локальной вставки до reload
+    final replySnapshot = _replyToMessage != null
+        ? {
+            'id': _replyToMessage!.id,
+            'documentId': _replyToMessage!.documentId,
+            'text': _replyToMessage!.text,
+            'type': _replyToMessage!.isFile ? 'FILE' : 'TEXT',
+            'users_permissions_user': _replyToMessage!.sender,
+          }
+        : null;
+    setState(() {
+      _isSending = true;
+      _replyToMessage = null;
+    });
 
     try {
       final msg = await _chatService.sendMessage(
         chatDocumentId: widget.chat.documentId!,
         text: text,
+        replyToDocumentId: replyDocId,
       );
       if (mounted) {
         setState(() {
@@ -150,7 +169,16 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
           if (!_messages.any((m) =>
               m.id == msg.id ||
               (msg.documentId != null && msg.documentId == m.documentId))) {
-            _messages.add(msg);
+            // Если сервер не вернул reply_to (не populated) — подставляем snapshot
+            if (!msg.hasReply && replySnapshot != null) {
+              final enriched = Message.fromJson({
+                ...msg.toJson(),
+                'reply_to': replySnapshot,
+              });
+              _messages.add(enriched);
+            } else {
+              _messages.add(msg);
+            }
           }
           _isSending = false;
         });
@@ -308,12 +336,13 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   }
 
   String _formatDateDivider(DateTime date) {
+    final local = date.toLocal();
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final msgDay = DateTime(date.year, date.month, date.day);
+    final msgDay = DateTime(local.year, local.month, local.day);
     if (msgDay == today) return 'Сегодня';
     if (msgDay == today.subtract(const Duration(days: 1))) return 'Вчера';
-    return DateFormat('d MMMM yyyy', 'ru').format(date);
+    return DateFormat('d MMMM yyyy', 'ru').format(local);
   }
 
   @override
@@ -359,21 +388,31 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                           // и по senderId (для загруженных с сервера)
                           final isMe = _mySentIds.contains(msg.id) ||
                               msg.senderId == widget.currentUserId;
+                          final curLocal = msg.createdAt?.toLocal();
+                          final prevLocal = i > 0 ? _messages[i - 1].createdAt?.toLocal() : null;
                           final showDate = i == 0 ||
-                              (msg.createdAt != null &&
-                                  _messages[i - 1].createdAt != null &&
-                                  DateTime(msg.createdAt!.year, msg.createdAt!.month, msg.createdAt!.day) !=
-                                      DateTime(_messages[i - 1].createdAt!.year, _messages[i - 1].createdAt!.month, _messages[i - 1].createdAt!.day));
+                              (curLocal != null &&
+                                  prevLocal != null &&
+                                  DateTime(curLocal.year, curLocal.month, curLocal.day) !=
+                                      DateTime(prevLocal.year, prevLocal.month, prevLocal.day));
 
                           return Column(
                             children: [
                               if (showDate && msg.createdAt != null) _dateDivider(msg.createdAt!),
-                              _buildBubble(msg, isMe),
+                              _swipeToReply(
+                                child: _buildBubble(msg, isMe),
+                                onReply: () {
+                                  setState(() => _replyToMessage = msg);
+                                },
+                              ),
                             ],
                           );
                         },
                       ),
           ),
+
+          // Превью ответа на сообщение
+          if (_replyToMessage != null) _buildReplyPreview(),
 
           // Ввод
           ClipRRect(
@@ -466,6 +505,73 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     );
   }
 
+  // ─── Свайп влево → ответить (с анимацией) ───
+
+  Widget _swipeToReply({required Widget child, required VoidCallback onReply}) {
+    return _SwipeToReplyWrapper(
+      onReply: onReply,
+      child: child,
+    );
+  }
+
+  // ─── Превью ответа над полем ввода ───
+
+  Widget _buildReplyPreview() {
+    final msg = _replyToMessage!;
+    final isMyMsg = msg.senderId == widget.currentUserId || _mySentIds.contains(msg.id);
+    final name = isMyMsg ? 'Вы' : (msg.senderName ?? _otherName);
+    final previewText = msg.isFile ? '📎 Файл' : (msg.text ?? '');
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+      decoration: BoxDecoration(
+        color: LG.panelFill,
+        border: Border(top: BorderSide(color: LG.border)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 3,
+            height: 36,
+            decoration: BoxDecoration(
+              color: LG.accent,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  name,
+                  style: LG.font(color: LG.accent, size: 12, weight: FontWeight.w700),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  previewText,
+                  style: LG.font(color: LG.textSecondary, size: 13),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          GestureDetector(
+            onTap: () => setState(() => _replyToMessage = null),
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Icon(Icons.close, color: LG.textMuted, size: 18),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _dateDivider(DateTime date) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -487,7 +593,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   }
 
   Widget _buildBubble(Message msg, bool isMe) {
-    final time = msg.createdAt != null ? DateFormat.Hm().format(msg.createdAt!) : '';
+    final time = msg.createdAt != null ? DateFormat.Hm().format(msg.createdAt!.toLocal()) : '';
     final avatarUrl = isMe ? null : msg.senderAvatarUrl;
     final initial = (!isMe && msg.senderName?.isNotEmpty == true)
         ? msg.senderName![0].toUpperCase()
@@ -510,6 +616,11 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       child: Column(
         crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
+          // Цитата сообщения, на которое отвечаем
+          if (msg.hasReply) ...[
+            _buildReplyQuote(msg, isMe),
+            const SizedBox(height: 6),
+          ],
           // Файловое вложение
           if (msg.isFile) ...[
             if (msg.fileUrl != null)
@@ -576,6 +687,69 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
           ),
           if (isMe) const SizedBox(width: 4),
         ],
+      ),
+    );
+  }
+
+  /// Цитата сообщения, на которое отвечаем (внутри пузыря)
+  Widget _buildReplyQuote(Message msg, bool isMe) {
+    final replySenderId = msg.replyToSenderId;
+    final isReplyFromMe = replySenderId == widget.currentUserId;
+    final replyName = isReplyFromMe ? 'Вы' : (msg.replyToSenderName ?? _otherName);
+    final replyText = msg.replyToIsFile ? '📎 Файл' : (msg.replyToText ?? '');
+
+    final textColor = isMe ? const Color(0xFF0A0A0F) : Colors.white;
+    final accentBar = isMe
+        ? const Color(0xFF0A0A0F).withValues(alpha: 0.4)
+        : LG.accent;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: (isMe ? Colors.black : Colors.white).withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: IntrinsicWidth(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 3,
+              height: 30,
+              decoration: BoxDecoration(
+                color: accentBar,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    replyName,
+                    style: LG.font(
+                      color: isMe
+                          ? const Color(0xFF0A0A0F).withValues(alpha: 0.7)
+                          : LG.accent,
+                      size: 11,
+                      weight: FontWeight.w700,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    replyText,
+                    style: LG.font(color: textColor.withValues(alpha: 0.7), size: 12),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -764,6 +938,122 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             Icon(Icons.download, color: isMe ? const Color(0xFF0A0A0F).withValues(alpha: 0.7) : LG.textMuted, size: 22),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ─── Анимированный свайп-влево для ответа ───────────────────────────────────
+
+class _SwipeToReplyWrapper extends StatefulWidget {
+  const _SwipeToReplyWrapper({
+    required this.onReply,
+    required this.child,
+  });
+
+  final VoidCallback onReply;
+  final Widget child;
+
+  @override
+  State<_SwipeToReplyWrapper> createState() => _SwipeToReplyWrapperState();
+}
+
+class _SwipeToReplyWrapperState extends State<_SwipeToReplyWrapper>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late Animation<double> _animation;
+
+  double _dragExtent = 0;
+  bool _triggered = false;
+
+  static const double _triggerThreshold = 60;
+  static const double _maxSlide = 80;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+    _animation = _controller.drive(Tween<double>(begin: 0, end: 0));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onDragUpdate(DragUpdateDetails details) {
+    final delta = details.primaryDelta ?? 0;
+    // Только влево (отрицательное значение)
+    _dragExtent = (_dragExtent + delta).clamp(-_maxSlide, 0);
+    setState(() {});
+
+    if (!_triggered && _dragExtent.abs() >= _triggerThreshold) {
+      _triggered = true;
+      HapticFeedback.mediumImpact();
+    }
+  }
+
+  void _onDragEnd(DragEndDetails details) {
+    if (_triggered) {
+      widget.onReply();
+    }
+    // Анимируем возврат
+    _animation = Tween<double>(begin: _dragExtent, end: 0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+    );
+    _controller.forward(from: 0).then((_) {
+      if (mounted) setState(() => _dragExtent = 0);
+    });
+    _triggered = false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onHorizontalDragUpdate: _onDragUpdate,
+      onHorizontalDragEnd: _onDragEnd,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          final currentOffset =
+              _controller.isAnimating ? _animation.value : _dragExtent;
+          final p = (currentOffset.abs() / _triggerThreshold).clamp(0.0, 1.0);
+
+          return Stack(
+            alignment: Alignment.centerRight,
+            children: [
+              // Иконка ответа за сообщением
+              Positioned(
+                right: 8,
+                child: Opacity(
+                  opacity: p,
+                  child: Transform.scale(
+                    scale: 0.5 + 0.5 * p,
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.reply, color: Colors.white, size: 20),
+                    ),
+                  ),
+                ),
+              ),
+              // Само сообщение
+              Transform.translate(
+                offset: Offset(currentOffset, 0),
+                child: child,
+              ),
+            ],
+          );
+        },
+        child: widget.child,
       ),
     );
   }

@@ -42,6 +42,11 @@
         "audios",
         "files"
       ]
+    },
+    "reply_to": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::message.message"
     }
   }
 }

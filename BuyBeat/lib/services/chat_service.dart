@@ -13,6 +13,24 @@ class ChatService {
 
   ChatService._();
 
+  /// Общие параметры populate для одного сообщения (Strapi 5 media-safe)
+  static const _msgPopulate = <String, String>{
+    'populate[users_permissions_user][populate]': 'avatar',
+    'populate[file_attachment][fields][0]': 'url',
+    'populate[file_attachment][fields][1]': 'name',
+    'populate[file_attachment][fields][2]': 'mime',
+    'populate[file_attachment][fields][3]': 'size',
+    'populate[chat][fields][0]': 'id',
+    'populate[chat][fields][1]': 'documentId',
+    'populate[reply_to][populate][users_permissions_user][fields][0]': 'id',
+    'populate[reply_to][populate][users_permissions_user][fields][1]': 'username',
+    'populate[reply_to][populate][users_permissions_user][fields][2]': 'display_name',
+    'populate[reply_to][fields][0]': 'id',
+    'populate[reply_to][fields][1]': 'documentId',
+    'populate[reply_to][fields][2]': 'text',
+    'populate[reply_to][fields][3]': 'type',
+  };
+
   // ============ ЧАТЫ ============
 
   /// Получить все чаты текущего пользователя
@@ -39,12 +57,28 @@ class ChatService {
     return items.map((json) => Chat.fromJson(json)).toList();
   }
 
+  // Мьютекс для предотвращения параллельного создания чатов
+  static Future<Chat>? _pendingCreate;
+
   /// Получить или создать чат между текущим пользователем и другим
   Future<Chat> getOrCreateChat(int otherUserId) async {
+    // Если уже идёт создание — ждём его результат
+    if (_pendingCreate != null) {
+      try { return await _pendingCreate!; } catch (_) {}
+    }
+    final completer = _pendingCreate = _getOrCreateChatImpl(otherUserId);
+    try {
+      return await completer;
+    } finally {
+      if (_pendingCreate == completer) _pendingCreate = null;
+    }
+  }
+
+  Future<Chat> _getOrCreateChatImpl(int otherUserId) async {
     final user = await AuthService().getCurrentUser();
     if (user == null) throw Exception('Не авторизован');
 
-    // Ищем существующий чат, в котором участвуют оба пользователя
+    // Ищем ВСЕ чаты текущего пользователя и фильтруем на клиенте
     final response = await _strapi.get(
       StrapiConfig.chats,
       queryParams: {
@@ -52,16 +86,15 @@ class ChatService {
         'populate[users_permissions_users][fields][1]': 'username',
         'populate[users_permissions_users][fields][2]': 'display_name',
         'populate[users_permissions_users][populate]': 'avatar',
-        'filters[\$and][0][users_permissions_users][id][\$eq]': user.id.toString(),
-        'filters[\$and][1][users_permissions_users][id][\$eq]': otherUserId.toString(),
-        'pagination[pageSize]': '100',
+        'filters[users_permissions_users][id][\$eq]': user.id.toString(),
+        'pagination[pageSize]': '200',
       },
     );
 
     final items = StrapiService.parseList(response);
     for (final json in items) {
       final chat = Chat.fromJson(json);
-      // Доп. проверка на клиенте (на случай если фильтр вернул лишнее)
+      // Проверяем на клиенте что оба пользователя — участники
       if (chat.participants != null) {
         final ids = chat.participants!
             .where((p) => p is Map<String, dynamic>)
@@ -135,7 +168,7 @@ class ChatService {
     final response = await _strapi.get(
       StrapiConfig.messages,
       queryParams: {
-        'populate': '*',
+        ..._msgPopulate,
         'filters[chat][documentId][\$eq]': chatDocumentId,
         'sort': 'createdAt:asc',
         'pagination[page]': page.toString(),
@@ -151,6 +184,7 @@ class ChatService {
   Future<Message> sendMessage({
     required String chatDocumentId,
     required String text,
+    String? replyToDocumentId,
   }) async {
     final user = await AuthService().getCurrentUser();
     if (user == null) throw Exception('Не авторизован');
@@ -163,6 +197,7 @@ class ChatService {
           'users_permissions_user': user.id,
           'type': 'TEXT',
           'text': text,
+          if (replyToDocumentId != null) 'reply_to': replyToDocumentId,
           'publishedAt': DateTime.now().toUtc().toIso8601String(),
         },
       },
@@ -185,7 +220,7 @@ class ChatService {
     try {
       final freshResponse = await _strapi.get(
         '${StrapiConfig.messages}/$msgRef',
-        queryParams: {'populate': '*'},
+        queryParams: _msgPopulate,
       );
       final freshItem = StrapiService.parseItem(freshResponse);
       if (freshItem != null) freshMsg = Message.fromJson(freshItem);
@@ -233,7 +268,7 @@ class ChatService {
     try {
       final freshResponse = await _strapi.get(
         '${StrapiConfig.messages}/$msgRef',
-        queryParams: {'populate': '*'},
+        queryParams: _msgPopulate,
       );
       final freshItem = StrapiService.parseItem(freshResponse);
       if (freshItem != null) freshMsg = Message.fromJson(freshItem);
@@ -247,6 +282,7 @@ class ChatService {
     required List<int> bytes,
     required String fileName,
     String? text,
+    String? replyToDocumentId,
   }) async {
     final user = await AuthService().getCurrentUser();
     if (user == null) throw Exception('Не авторизован');
@@ -263,6 +299,7 @@ class ChatService {
           'users_permissions_user': user.id,
           'type': 'FILE',
           if (text != null) 'text': text,
+          if (replyToDocumentId != null) 'reply_to': replyToDocumentId,
           'file_attachment': fileId,
           'publishedAt': DateTime.now().toUtc().toIso8601String(),
         },
@@ -284,7 +321,7 @@ class ChatService {
     try {
       final freshResponse = await _strapi.get(
         '${StrapiConfig.messages}/$msgRef',
-        queryParams: {'populate': '*'},
+        queryParams: _msgPopulate,
       );
       final freshItem = StrapiService.parseItem(freshResponse);
       if (freshItem != null) freshMsg = Message.fromJson(freshItem);

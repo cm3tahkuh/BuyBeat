@@ -80,7 +80,7 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> with Sing
 
   Widget _buildPurchaseCard(Purchase p) {
     final statusColor = _statusColor(p.purchaseStatus);
-    final dateStr = p.createdAt != null ? DateFormat('dd.MM.yyyy HH:mm').format(p.createdAt!) : '';
+    final dateStr = p.createdAt != null ? DateFormat('dd.MM.yyyy HH:mm').format(p.createdAt!.toLocal()) : '';
     final fileTypeName = p.beatFile?['type'] as String? ?? '';
     final beatInfo = p.beatFile?['beat'];
     final beatTitle = beatInfo is Map ? (beatInfo['title'] as String? ?? 'Beat') : 'Beat #${p.beatFileId ?? "?"}';
@@ -157,7 +157,7 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> with Sing
 
   Widget _buildWalletEntryCard(WalletEntry entry) {
     final isPositive = entry.amount >= 0;
-    final dateStr = entry.createdAt != null ? DateFormat('dd.MM.yyyy HH:mm').format(entry.createdAt!) : '';
+    final dateStr = entry.createdAt != null ? DateFormat('dd.MM.yyyy HH:mm').format(entry.createdAt!.toLocal()) : '';
     IconData icon; Color color;
     switch (entry.entryType) {
       case WalletEntryType.topup: icon = Icons.arrow_downward; color = LG.green;

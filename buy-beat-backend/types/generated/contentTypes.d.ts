@@ -596,6 +596,7 @@ export interface ApiMessageMessage extends Struct.CollectionTypeSchema {
     > &
       Schema.Attribute.Private;
     publishedAt: Schema.Attribute.DateTime;
+    reply_to: Schema.Attribute.Relation<'manyToOne', 'api::message.message'>;
     text: Schema.Attribute.String;
     type: Schema.Attribute.Enumeration<['TEXT', 'FILE']>;
     updatedAt: Schema.Attribute.DateTime;

@@ -75,17 +75,18 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   String _formatDate(DateTime date) {
+    final local = date.toLocal();
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
-    final messageDay = DateTime(date.year, date.month, date.day);
+    final messageDay = DateTime(local.year, local.month, local.day);
 
     if (messageDay == today) {
       return "Сегодня";
     } else if (messageDay == yesterday) {
       return "Вчера";
     } else {
-      return DateFormat("d MMMM yyyy", "ru").format(date);
+      return DateFormat("d MMMM yyyy", "ru").format(local);
     }
   }
 

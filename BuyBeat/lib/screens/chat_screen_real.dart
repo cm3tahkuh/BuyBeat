@@ -100,12 +100,13 @@ class _ChatScreenState extends State<ChatScreen> {
 
   String _formatTime(DateTime? dt) {
     if (dt == null) return '';
+    final local = dt.toLocal();
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final msgDay = DateTime(dt.year, dt.month, dt.day);
-    if (msgDay == today) return DateFormat.Hm().format(dt);
+    final msgDay = DateTime(local.year, local.month, local.day);
+    if (msgDay == today) return DateFormat.Hm().format(local);
     if (msgDay == today.subtract(const Duration(days: 1))) return 'Вчера';
-    return DateFormat('dd.MM').format(dt);
+    return DateFormat('dd.MM').format(local);
   }
 
   @override

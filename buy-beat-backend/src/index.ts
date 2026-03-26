@@ -210,6 +210,12 @@ export default {
                 users_permissions_user: { fields: ['id', 'username', 'display_name'] },
                 file_attachment: { fields: ['id', 'url', 'name', 'mime', 'size'] },
                 chat: { fields: ['id', 'documentId'] },
+                reply_to: {
+                  fields: ['id', 'documentId', 'text', 'type'],
+                  populate: {
+                    users_permissions_user: { fields: ['id', 'username', 'display_name'] },
+                  },
+                },
               },
             });
 
