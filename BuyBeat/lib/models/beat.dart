@@ -35,6 +35,8 @@ class Beat {
   final DateTime? createdAt;
   @JsonKey(name: 'updatedAt')
   final DateTime? updatedAt;
+  @JsonKey(name: 'play_count')
+  final int? playCount;
 
   Beat({
     required this.id,
@@ -53,6 +55,7 @@ class Beat {
     this.tags,
     this.createdAt,
     this.updatedAt,
+    this.playCount,
   });
 
   factory Beat.fromJson(Map<String, dynamic> json) => _$BeatFromJson(json);
@@ -110,6 +113,29 @@ class Beat {
   
   /// Названия тегов
   List<String> get tagNames => tagsList.map((t) => t.name).toList();
+
+  /// Копия бита с изменённым полем
+  Beat copyWith({int? playCount}) {
+    return Beat(
+      id: id,
+      documentId: documentId,
+      title: title,
+      bpm: bpm,
+      key: key,
+      mood: mood,
+      priceBase: priceBase,
+      durationSeconds: durationSeconds,
+      visibility: visibility,
+      cover: cover,
+      audioPreview: audioPreview,
+      producer: producer,
+      genre: genre,
+      tags: tags,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      playCount: playCount ?? this.playCount,
+    );
+  }
 }
 
 enum BeatVisibility {

@@ -57,7 +57,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         buyerName: user?.displayName ?? user?.username ?? 'User', buyerEmail: user?.email ?? '',
         purchaseDate: DateTime.now(), transactionId: _transactionId,
       );
-      await Printing.sharePdf(bytes: pdfBytes, filename: 'BuyBeats_Receipt_$_transactionId.pdf');
+      await Printing.sharePdf(bytes: pdfBytes, filename: 'BuyBeat_Receipt_$_transactionId.pdf');
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка генерации PDF: $e')));
     }
@@ -109,7 +109,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: LG.accent.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
             child: Icon(Icons.account_balance_wallet, color: LG.accent, size: 22)),
           const SizedBox(width: 12),
-          Text('Кошелёк BuyBeats', style: LG.font(weight: FontWeight.w700, size: 16)),
+          Text('Кошелёк BuyBeat', style: LG.font(weight: FontWeight.w700, size: 16)),
         ]),
         const SizedBox(height: 12),
         _loadingWallet

@@ -1,5 +1,7 @@
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import '../models/purchase.dart';
 
 /// Генерирует PDF-чек для покупки и возвращает байты
@@ -12,7 +14,22 @@ class PdfReceiptService {
     required String licenseType,
     required String buyerUsername,
   }) async {
-    final pdf = pw.Document();
+    // Шрифты с поддержкой кириллицы
+    pw.Font regular;
+    pw.Font bold;
+    try {
+      final regData = await rootBundle.load('assets/fonts/NotoSans-Regular.ttf');
+      final boldData = await rootBundle.load('assets/fonts/NotoSans-Bold.ttf');
+      regular = pw.Font.ttf(regData);
+      bold = pw.Font.ttf(boldData);
+    } catch (_) {
+      regular = await PdfGoogleFonts.notoSansRegular();
+      bold = await PdfGoogleFonts.notoSansBold();
+    }
+
+    final pdf = pw.Document(
+      theme: pw.ThemeData.withFont(base: regular, bold: bold),
+    );
 
     final dateStr = purchase.createdAt != null
         ? '${purchase.createdAt!.day.toString().padLeft(2, '0')}'
@@ -30,6 +47,7 @@ class PdfReceiptService {
       pw.Page(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(40),
+        theme: pw.ThemeData.withFont(base: regular, bold: bold),
         build: (context) => pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
@@ -46,7 +64,7 @@ class PdfReceiptService {
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      pw.Text('BuyBeats',
+                      pw.Text('BuyBeat',
                           style: pw.TextStyle(
                               color: accentColor,
                               fontSize: 26,
@@ -89,7 +107,7 @@ class PdfReceiptService {
                 style: pw.TextStyle(fontSize: 13, color: grayColor)),
             pw.SizedBox(height: 10),
             _infoRow('Покупатель', buyerUsername),
-            _infoRow('Способ оплаты', 'Кошелёк BuyBeats'),
+            _infoRow('Способ оплаты', 'Кошелёк BuyBeat'),
             _infoRow('Статус', 'Оплачено'),
             pw.SizedBox(height: 24),
 
@@ -121,7 +139,7 @@ class PdfReceiptService {
             pw.SizedBox(height: 8),
             pw.Text(
               'Данный документ является подтверждением покупки лицензии на использование бита.\n'
-              'BuyBeats — платформа для продажи и покупки музыкальных битов.',
+              'BuyBeat — платформа для продажи и покупки музыкальных битов.',
               style: pw.TextStyle(color: grayColor, fontSize: 9),
               textAlign: pw.TextAlign.center,
             ),

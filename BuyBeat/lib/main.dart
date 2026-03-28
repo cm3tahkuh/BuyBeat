@@ -12,6 +12,11 @@ import 'services/websocket_service.dart';
 import 'services/in_app_notification_service.dart';
 import 'services/native_notification_service.dart';
 import 'widgets/global_player_bar.dart';
+import 'services/chat_service.dart';
+import 'services/auth_service.dart';
+import 'services/favorite_service.dart';
+import 'models/chat.dart';
+import 'screens/chat_conversation_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,13 +35,77 @@ void main() async {
     if (StrapiService.instance.isAuthenticated) {
       WebSocketService.instance.connect();
       InAppNotificationService.instance.start();
+      FavoriteService.instance.loadFavorites();
       print('🔌 WebSocket подключение запущено');
     }
   } catch (e) {
     print('❌ Ошибка инициализации Strapi: $e');
   }
+
+  // Обработка нажатия на уведомление — открыть чат
+  NativeNotificationService.instance.onTap = (String payload) {
+    _handleNotificationTap(payload);
+  };
   
   runApp(const BeatMarketplaceApp());
+}
+
+/// Обработка нажатия на уведомление — навигация в чат
+Future<void> _handleNotificationTap(String payload) async {
+  print('🔔 _handleNotificationTap: payload=$payload');
+  if (payload.isEmpty) return;
+
+  try {
+    // Ждём, пока navigator станет доступен (max 5 сек)
+    final navKey = InAppNotificationService.instance.navigatorKey;
+    NavigatorState? navigator;
+    for (int i = 0; i < 50; i++) {
+      navigator = navKey.currentState;
+      if (navigator != null) break;
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+    if (navigator == null) {
+      print('🔔 _handleNotificationTap: navigator not available after 5s');
+      return;
+    }
+    print('🔔 _handleNotificationTap: navigator ready');
+
+    final user = await AuthService().getCurrentUser();
+    if (user == null) {
+      print('🔔 _handleNotificationTap: user is null');
+      return;
+    }
+    print('🔔 _handleNotificationTap: user=${user.id}');
+
+    // payload может быть documentId (строка) или числовой id (legacy)
+    Chat? chat;
+    final numericId = int.tryParse(payload);
+    if (numericId != null) {
+      // legacy: ищем по числовому id через getMyChats
+      final chats = await ChatService.instance.getMyChats();
+      chat = chats.where((c) => c.id == numericId).firstOrNull;
+    } else {
+      // новый формат: documentId
+      chat = await ChatService.instance.getChatByDocumentId(payload);
+    }
+
+    if (chat == null) {
+      print('🔔 _handleNotificationTap: chat not found for payload=$payload');
+      return;
+    }
+    print('🔔 _handleNotificationTap: navigating to chat id=${chat.id}');
+
+    navigator.push(
+      MaterialPageRoute(
+        builder: (_) => ChatConversationScreen(
+          chat: chat!,
+          currentUserId: user.id,
+        ),
+      ),
+    );
+  } catch (e, st) {
+    print('🔔 _handleNotificationTap ERROR: $e\n$st');
+  }
 }
 
 class BeatMarketplaceApp extends StatefulWidget {
@@ -90,7 +159,7 @@ class _BeatMarketplaceAppState extends State<BeatMarketplaceApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'BuyBeats',
+      title: 'BuyBeat',
       debugShowCheckedModeBanner: false,
       navigatorKey: InAppNotificationService.instance.navigatorKey,
       theme: LG.themeData(),

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show debugPrint;
 import '../models/beat.dart';
 import '../models/genre.dart';
 import '../models/tag.dart';
@@ -143,6 +144,21 @@ class BeatService {
       }
     }
     
+    final response = await _strapi.get(StrapiConfig.beats, queryParams: queryParams);
+    final items = StrapiService.parseList(response);
+    return items.map((json) => Beat.fromJson(json)).toList();
+  }
+
+  /// Загрузить биты по списку documentId
+  Future<List<Beat>> getBeatsByDocumentIds(List<String> docIds) async {
+    if (docIds.isEmpty) return [];
+    final queryParams = <String, String>{
+      'populate': '*',
+      'pagination[pageSize]': '100',
+    };
+    for (var i = 0; i < docIds.length; i++) {
+      queryParams['filters[documentId][\$in][$i]'] = docIds[i];
+    }
     final response = await _strapi.get(StrapiConfig.beats, queryParams: queryParams);
     final items = StrapiService.parseList(response);
     return items.map((json) => Beat.fromJson(json)).toList();
@@ -327,4 +343,23 @@ class BeatService {
     final items = StrapiService.parseList(response);
     return items.map((json) => BeatFile.fromJson(json)).toList();
   }
+
+  // ============ Прослушивания ============
+
+  /// Зафиксировать прослушивание бита — вызывать один раз при начале воспроизведения.
+  /// [documentId] — documentId бита (строковый идентификатор Strapi 5).
+  /// Инкремент прослушиваний. Возвращает новое значение play_count или null при ошибке.
+  Future<int?> incrementPlayCount(String documentId) async {
+    try {
+      final res = await _strapi.post(
+        '${StrapiConfig.beats}/$documentId/play',
+      );
+      return (res['play_count'] as num?)?.toInt();
+    } catch (e) {
+      // Не блокируем воспроизведение при ошибке
+      debugPrint('incrementPlayCount error: $e');
+      return null;
+    }
+  }
 }
+

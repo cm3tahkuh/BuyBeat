@@ -189,7 +189,7 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> with Sing
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       title: Text('Пополнение кошелька', style: LG.font(weight: FontWeight.w700, size: 18)),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
-        Text('Демо-пополнение для тестирования', style: LG.font(color: LG.textMuted, size: 13)),
+        Text('Введите сумму пополнения', style: LG.font(color: LG.textMuted, size: 13)),
         const SizedBox(height: 16),
         TextField(controller: controller, keyboardType: TextInputType.number,
           style: LG.font(), decoration: InputDecoration(

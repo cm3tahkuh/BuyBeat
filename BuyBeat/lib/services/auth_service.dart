@@ -4,6 +4,7 @@ import '../config/strapi_config.dart';
 import 'strapi_service.dart';
 import 'websocket_service.dart';
 import 'in_app_notification_service.dart';
+import 'favorite_service.dart';
 
 /// Сервис аутентификации через Strapi API
 class AuthService {
@@ -180,6 +181,7 @@ class AuthService {
     // Отключаем WebSocket и уведомления
     WebSocketService.instance.disconnect();
     InAppNotificationService.instance.stop();
+    FavoriteService.instance.clear();
     
     await _strapi.clearToken();
     _cachedUser = null;

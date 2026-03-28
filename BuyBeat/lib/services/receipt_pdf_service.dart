@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -17,12 +18,27 @@ class ReceiptPdfService {
     required DateTime purchaseDate,
     String? transactionId,
   }) async {
-    // Шрифты Noto Sans с поддержкой кириллицы
-    final regular = await PdfGoogleFonts.notoSansRegular();
-    final bold    = await PdfGoogleFonts.notoSansBold();
-    final italic  = await PdfGoogleFonts.notoSansItalic();
+    // Шрифты Noto Sans с поддержкой кириллицы (сначала бандл, потом Google Fonts CDN)
+    pw.Font regular;
+    pw.Font bold;
+    pw.Font italic;
+    try {
+      final regData = await rootBundle.load('assets/fonts/NotoSans-Regular.ttf');
+      final boldData = await rootBundle.load('assets/fonts/NotoSans-Bold.ttf');
+      final italicData = await rootBundle.load('assets/fonts/NotoSans-Italic.ttf');
+      regular = pw.Font.ttf(regData);
+      bold = pw.Font.ttf(boldData);
+      italic = pw.Font.ttf(italicData);
+    } catch (_) {
+      // Fallback: скачиваем из Google Fonts CDN
+      regular = await PdfGoogleFonts.notoSansRegular();
+      bold    = await PdfGoogleFonts.notoSansBold();
+      italic  = await PdfGoogleFonts.notoSansItalic();
+    }
 
-    final pdf = pw.Document();
+    final pdf = pw.Document(
+      theme: pw.ThemeData.withFont(base: regular, bold: bold, italic: italic),
+    );
     final dateStr = DateFormat('dd.MM.yyyy HH:mm').format(purchaseDate);
 
     final greenColor = PdfColor.fromHex('#22C55E');
@@ -42,7 +58,7 @@ class ReceiptPdfService {
           // ── Шапка ───────────────────────────────────────────────────
           pw.Center(
             child: pw.Column(children: [
-              pw.Text('BuyBeats',
+              pw.Text('BuyBeat',
                   style: pw.TextStyle(font: bold, fontSize: 30, color: darkColor)),
               pw.SizedBox(height: 4),
               pw.Text('Маркетплейс битов',
@@ -135,8 +151,8 @@ class ReceiptPdfService {
               pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  pw.Text('Платформа BuyBeats', style: bodyBold()),
-                  pw.Text('support@buybeats.com',
+                  pw.Text('Платформа BuyBeat', style: bodyBold()),
+                  pw.Text('support@buybeat.com',
                       style: body(size: 10, color: PdfColors.grey600)),
                 ],
               ),

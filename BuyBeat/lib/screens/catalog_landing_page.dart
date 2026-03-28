@@ -4,6 +4,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../config/glass_theme.dart';
 import '../services/beat_service.dart';
 import '../services/audio_player_service.dart';
+import '../services/favorite_service.dart';
 import '../models/beat.dart' as models;
 import '../models/genre.dart';
 import '../models/tag.dart';
@@ -50,6 +51,7 @@ class CatalogLandingPage extends StatefulWidget {
 class _CatalogLandingPageState extends State<CatalogLandingPage> {
   final _audio = AudioPlayerService.instance;
   final _beatService = BeatService.instance;
+  final _favService = FavoriteService.instance;
   List<models.Beat> _beats = [];
   List<Genre> _genres = [];
   List<Tag> _tags = [];
@@ -78,6 +80,7 @@ class _CatalogLandingPageState extends State<CatalogLandingPage> {
         });
       }
     });
+    _favService.addListener(_onFavChanged);
     _loadData();
   }
 
@@ -101,6 +104,7 @@ class _CatalogLandingPageState extends State<CatalogLandingPage> {
   @override
   void dispose() {
     _playerSub?.cancel();
+    _favService.removeListener(_onFavChanged);
     _searchController.dispose();
     super.dispose();
   }
@@ -108,6 +112,10 @@ class _CatalogLandingPageState extends State<CatalogLandingPage> {
   void _playBeat(models.Beat b) {
     _audio.play(b);
     _syncQueue();
+  }
+
+  void _onFavChanged() {
+    if (mounted) setState(() {});
   }
 
   void _skipTrack(int delta) {
@@ -159,7 +167,7 @@ class _CatalogLandingPageState extends State<CatalogLandingPage> {
             child: const Icon(Icons.music_note, color: Color(0xFF0A0A0F), size: 18),
           ),
           const SizedBox(width: 12),
-          Text('BuyBeats', style: LG.h3),
+          Text('BuyBeat', style: LG.h3),
         ]),
       ),
 
@@ -420,10 +428,12 @@ class _CatalogLandingPageState extends State<CatalogLandingPage> {
         return RepaintBoundary(child: _BeatCard(
           beat: b,
           isCurrentlyPlaying: isCurrent && _isPlaying,
+          isFavorite: _favService.isFavorite(b.documentId),
+          onToggleFav: b.documentId != null ? () => _favService.toggle(b.documentId!) : null,
           onPlay: () => _playBeat(b),
           onTap: () async {
-            final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => BeatDetailScreen(beat: b, onMessageProducer: widget.onMessageProducer)));
-            if (result == 'updated' || result == 'deleted') _loadData();
+            await Navigator.push(context, MaterialPageRoute(builder: (_) => BeatDetailScreen(beat: b, onMessageProducer: widget.onMessageProducer)));
+            _loadData(); // обновляем — play_count мог измениться
           },
         ));
       },
@@ -438,7 +448,9 @@ class _BeatCard extends StatefulWidget {
   final VoidCallback onPlay;
   final VoidCallback? onTap;
   final bool isCurrentlyPlaying;
-  const _BeatCard({required this.beat, required this.onPlay, this.onTap, this.isCurrentlyPlaying = false});
+  final bool isFavorite;
+  final VoidCallback? onToggleFav;
+  const _BeatCard({required this.beat, required this.onPlay, this.onTap, this.isCurrentlyPlaying = false, this.isFavorite = false, this.onToggleFav});
   @override
   State<_BeatCard> createState() => _BeatCardState();
 }
@@ -502,6 +514,23 @@ class _BeatCardState extends State<_BeatCard> {
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text('\$${widget.beat.priceBase.toStringAsFixed(0)}', style: LG.font(size: 13, weight: FontWeight.w700, color: const Color(0xFF0A0A0F))),
+                )),
+              // Favorite heart
+              if (widget.onToggleFav != null)
+                Positioned(right: 10, top: 10, child: GestureDetector(
+                  onTap: widget.onToggleFav,
+                  child: Container(
+                    width: 32, height: 32,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.black.withValues(alpha: 0.45),
+                    ),
+                    child: Icon(
+                      widget.isFavorite ? Icons.favorite : Icons.favorite_border,
+                      color: widget.isFavorite ? LG.pink : Colors.white70,
+                      size: 17,
+                    ),
+                  ),
                 )),
             ])),
             Padding(

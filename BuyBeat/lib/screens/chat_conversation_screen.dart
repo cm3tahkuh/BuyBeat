@@ -45,6 +45,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   Message? _replyToMessage;
 
   String get _otherName => widget.chat.otherParticipantName(widget.currentUserId);
+  String? get _otherAvatarUrl => widget.chat.otherParticipantAvatarUrl(widget.currentUserId);
 
   @override
   void initState() {
@@ -355,10 +356,15 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             CircleAvatar(
               radius: 18,
               backgroundColor: LG.accent.withValues(alpha: 0.2),
-              child: Text(
-                _otherName.isNotEmpty ? _otherName[0].toUpperCase() : '?',
-                style: LG.font(color: LG.accent, weight: FontWeight.w800),
-              ),
+              backgroundImage: _otherAvatarUrl != null && _otherAvatarUrl!.isNotEmpty
+                  ? NetworkImage(_otherAvatarUrl!)
+                  : null,
+              child: (_otherAvatarUrl == null || _otherAvatarUrl!.isEmpty)
+                  ? Text(
+                      _otherName.isNotEmpty ? _otherName[0].toUpperCase() : '?',
+                      style: LG.font(color: LG.accent, weight: FontWeight.w800),
+                    )
+                  : null,
             ),
             const SizedBox(width: 12),
             Text(_otherName, style: LG.font(weight: FontWeight.w700, size: 16)),

@@ -498,6 +498,7 @@ export interface ApiBeatBeat extends Struct.CollectionTypeSchema {
     localizations: Schema.Attribute.Relation<'oneToMany', 'api::beat.beat'> &
       Schema.Attribute.Private;
     mood: Schema.Attribute.String;
+    play_count: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>;
     price_base: Schema.Attribute.Decimal &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<29.99>;
@@ -539,6 +540,38 @@ export interface ApiChatChat extends Struct.CollectionTypeSchema {
       Schema.Attribute.Private;
     users_permissions_users: Schema.Attribute.Relation<
       'manyToMany',
+      'plugin::users-permissions.user'
+    >;
+  };
+}
+
+export interface ApiFavoriteFavorite extends Struct.CollectionTypeSchema {
+  collectionName: 'favorites';
+  info: {
+    displayName: 'Favorite';
+    pluralName: 'favorites';
+    singularName: 'favorite';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    beat: Schema.Attribute.Relation<'manyToOne', 'api::beat.beat'>;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::favorite.favorite'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    users_permissions_user: Schema.Attribute.Relation<
+      'manyToOne',
       'plugin::users-permissions.user'
     >;
   };
@@ -1268,6 +1301,7 @@ declare module '@strapi/strapi' {
       'api::beat-file.beat-file': ApiBeatFileBeatFile;
       'api::beat.beat': ApiBeatBeat;
       'api::chat.chat': ApiChatChat;
+      'api::favorite.favorite': ApiFavoriteFavorite;
       'api::genre.genre': ApiGenreGenre;
       'api::message.message': ApiMessageMessage;
       'api::purchase.purchase': ApiPurchasePurchase;

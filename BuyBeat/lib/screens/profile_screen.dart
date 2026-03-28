@@ -16,6 +16,7 @@ import 'purchase_history_screen.dart';
 import 'upload_beat_screen.dart';
 import 'beat_detail_screen.dart';
 import 'edit_beat_screen.dart';
+import 'favorites_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -122,6 +123,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showStatsDialog() {
+    final totalPlays = _myBeats.fold<int>(0, (s, b) => s + (b.playCount ?? 0));
     showDialog(context: context, builder: (ctx) => AlertDialog(
       backgroundColor: LG.bgLight, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       title: Text('Моя статистика', style: LG.font(weight: FontWeight.w700, size: 18)),
@@ -129,6 +131,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _statsRow(Icons.music_note, 'Опубликовано битов', _myBeats.length.toString()),
         const SizedBox(height: 12),
         _statsRow(Icons.visibility, 'Публичных', _myBeats.where((b) => b.visibility == BeatVisibility.public).length.toString()),
+        const SizedBox(height: 12),
+        _statsRow(Icons.headphones, 'Всего прослушиваний', totalPlays.toString()),
         const SizedBox(height: 12),
         _statsRow(Icons.attach_money, 'Средняя цена',
           _myBeats.isEmpty ? '—' : '\$${(_myBeats.map((b) => b.priceBase).reduce((a, b) => a + b) / _myBeats.length).toStringAsFixed(2)}'),
@@ -274,8 +278,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Divider(color: LG.border, height: 16),
             // Stats row
             Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-              Expanded(child: _buildStatItem('Подписчики', '—')),
-              Expanded(child: _buildStatItem('Прослушивания', '—')),
+              Expanded(child: _buildStatItem('Прослушивания', _myBeats.fold<int>(0, (s, b) => s + (b.playCount ?? 0)).toString())),
               Expanded(child: _buildStatItem('Треки', _myBeats.length.toString())),
             ]),
             const SizedBox(height: 14),
@@ -290,7 +293,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
 
         final menuPanel = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          _menuBtn(Icons.star, 'Избранное', () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Избранное скоро будет доступно')))),
+          _menuBtn(Icons.favorite, 'Избранное', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FavoritesScreen())), color: LG.pink),
           _menuBtn(Icons.bar_chart, 'Статистика', _showStatsDialog),
           _menuBtn(Icons.account_balance_wallet, 'Кошелёк', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PurchaseHistoryScreen()))),
           _menuBtn(Icons.shopping_bag_outlined, 'Мои покупки', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PurchaseHistoryScreen()))),
@@ -303,7 +306,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             color: _user!.isSuperAdmin ? LG.orange : LG.red),
         ]);
 
-        return SingleChildScrollView(
+        return RefreshIndicator(
+          color: LG.accent,
+          backgroundColor: LG.bgLight,
+          onRefresh: _loadUserData,
+          child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.symmetric(vertical: 20, horizontal: hPad),
           child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 1100),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -338,8 +346,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     beat: beat,
                     onTap: () async {
                       AudioPlayerService.instance.setQueue(_myBeats);
-                      final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => BeatDetailScreen(beat: beat)));
-                      if (result == 'deleted' || result == 'updated') _loadUserData();
+                      await Navigator.push(context, MaterialPageRoute(builder: (_) => BeatDetailScreen(beat: beat)));
+                      _loadUserData(); // всегда обновляем — play_count мог измениться
                     },
                     onEdit: () => _editBeat(beat),
                     onDelete: () => _deleteBeat(beat),
@@ -352,7 +360,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],              // Bottom padding for floating nav bar
               const SizedBox(height: 120),            ]),
           )),
-        );
+        ));
       })),
     );
   }
@@ -450,8 +458,15 @@ class _RealBeatCardState extends State<_RealBeatCard> {
             Text(beat.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: LG.font(size: 13, weight: FontWeight.w700)),
             const SizedBox(height: 2),
             Text(beat.genreName ?? '—', style: LG.font(color: LG.textMuted, size: 11)),
-            if (beat.priceBase > 0) ...[const SizedBox(height: 4),
-              Text('\$${beat.priceBase.toStringAsFixed(2)}', style: LG.font(color: LG.green, size: 12, weight: FontWeight.w700))],
+            const SizedBox(height: 3),
+            Row(children: [
+              Icon(Icons.headphones, size: 11, color: LG.textMuted),
+              const SizedBox(width: 3),
+              Text('${beat.playCount ?? 0}', style: LG.font(color: LG.textMuted, size: 11)),
+              const Spacer(),
+              if (beat.priceBase > 0)
+                Text('\$${beat.priceBase.toStringAsFixed(2)}', style: LG.font(color: LG.green, size: 12, weight: FontWeight.w700)),
+            ]),
           ])),
         ]),
       ),

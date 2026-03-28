@@ -18,8 +18,21 @@ class NativeNotificationService {
   bool _initialized = false;
   int _notificationId = 0;
 
+  /// Payload, полученный до того как onTap был установлен (cold start)
+  String? _pendingPayload;
+
   /// Коллбэк при нажатии на уведомление — payload = chatId
-  void Function(String payload)? onTap;
+  void Function(String payload)? _onTapCallback;
+  set onTap(void Function(String payload)? callback) {
+    _onTapCallback = callback;
+    // Если есть отложенный payload (cold start) — доставляем
+    if (callback != null && _pendingPayload != null) {
+      final p = _pendingPayload!;
+      _pendingPayload = null;
+      print('🔔 NativeNotif: delivering pending payload=$p');
+      callback(p);
+    }
+  }
 
   /// Инициализация плагина. Вызывать до runApp() или в main().
   Future<void> init() async {
@@ -74,12 +87,30 @@ class NativeNotificationService {
     }
 
     _initialized = true;
+
+    // Cold start: приложение запустилось по тапу на уведомление
+    if (!kIsWeb) {
+      final launchDetails = await _plugin.getNotificationAppLaunchDetails();
+      if (launchDetails != null &&
+          launchDetails.didNotificationLaunchApp &&
+          launchDetails.notificationResponse != null) {
+        print('🔔 NativeNotif: launched from notification');
+        _onNotificationResponse(launchDetails.notificationResponse!);
+      }
+    }
   }
 
   void _onNotificationResponse(NotificationResponse response) {
     final payload = response.payload;
+    print('🔔 NativeNotif: _onNotificationResponse payload=$payload, onTap=${_onTapCallback != null}');
     if (payload != null && payload.isNotEmpty) {
-      onTap?.call(payload);
+      if (_onTapCallback != null) {
+        _onTapCallback!(payload);
+      } else {
+        // onTap ещё не установлен (cold start) — сохраняем
+        _pendingPayload = payload;
+        print('🔔 NativeNotif: stored pending payload=$payload');
+      }
     }
   }
 

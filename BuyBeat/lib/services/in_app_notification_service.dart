@@ -53,10 +53,12 @@ class InAppNotificationService {
         : (event.message.text ?? '');
 
     // Показываем только нативное уведомление (Android shade / iOS Notification Center)
+    // payload = chatDocumentId (стабильный строковый ID, не зависит от draft/published)
+    final docId = event.chatDocumentId ?? event.chatId.toString();
     NativeNotificationService.instance.show(
       title: senderName,
       body: text,
-      payload: event.chatId.toString(),
+      payload: docId,
       chatId: event.chatId,
     );
   }

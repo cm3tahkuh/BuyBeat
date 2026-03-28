@@ -10,6 +10,7 @@ import '../services/beat_service.dart';
 import '../services/cart_service.dart';
 import '../services/auth_service.dart';
 import '../services/purchase_service.dart';
+import '../services/favorite_service.dart';
 import 'cart_screen.dart';
 import 'edit_beat_screen.dart';
 
@@ -41,6 +42,8 @@ class _BeatDetailScreenState extends State<BeatDetailScreen> {
   late Beat _beat = widget.beat;
   Beat get beat => _beat;
   bool _wasEdited = false;
+  bool _playTracked = false; // фиксируем прослушивание только один раз за сессию
+  final _favService = FavoriteService.instance;
   StreamSubscription<PlayerState>? _stateSub;
   StreamSubscription<Duration>? _posSub;
   StreamSubscription<Duration?>? _durSub;
@@ -51,9 +54,18 @@ class _BeatDetailScreenState extends State<BeatDetailScreen> {
     super.initState();
     _stateSub = _audio.playerStateStream.listen((s) {
       if (!mounted) return;
-      // Only rebuild if this beat is active
       final nowPlaying = _audio.currentBeat?.id == beat.id;
-      setState(() => _isPlaying = nowPlaying && s.playing && s.processingState != ProcessingState.completed);
+      final isActuallyPlaying = nowPlaying && s.playing && s.processingState != ProcessingState.completed;
+      setState(() => _isPlaying = isActuallyPlaying);
+      // Фиксируем прослушивание один раз при начале воспроизведения
+      if (isActuallyPlaying && !_playTracked && beat.documentId != null) {
+        _playTracked = true;
+        BeatService.instance.incrementPlayCount(beat.documentId!).then((newCount) {
+          if (newCount != null && mounted) {
+            setState(() => _beat = _beat.copyWith(playCount: newCount));
+          }
+        });
+      }
     });
     _posSub = _audio.positionStream.listen((p) {
       if (!mounted || _audio.currentBeat?.id != beat.id) return;
@@ -69,6 +81,11 @@ class _BeatDetailScreenState extends State<BeatDetailScreen> {
     _loadBeatFiles();
     _checkOwnership();
     _loadPurchasedIds();
+    _favService.addListener(_onFavChanged);
+  }
+
+  void _onFavChanged() {
+    if (mounted) setState(() {});
   }
 
   void _checkOwnership() {
@@ -101,6 +118,7 @@ class _BeatDetailScreenState extends State<BeatDetailScreen> {
     _stateSub?.cancel();
     _posSub?.cancel();
     _durSub?.cancel();
+    _favService.removeListener(_onFavChanged);
     super.dispose();
   }
 
@@ -171,6 +189,16 @@ class _BeatDetailScreenState extends State<BeatDetailScreen> {
       child: GlassScaffold(
       appBar: GlassAppBar(
         title: 'Детали бита',
+        actions: [
+          if (beat.documentId != null)
+            IconButton(
+              icon: Icon(
+                _favService.isFavorite(beat.documentId) ? Icons.favorite : Icons.favorite_border,
+                color: _favService.isFavorite(beat.documentId) ? LG.pink : LG.textSecondary,
+              ),
+              onPressed: () => _favService.toggle(beat.documentId!),
+            ),
+        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -194,6 +222,7 @@ class _BeatDetailScreenState extends State<BeatDetailScreen> {
                 if (beat.bpm != null) _chip('${beat.bpm} BPM', Icons.speed, LG.orange),
                 if (beat.key != null) _chip(beat.key!, Icons.piano, LG.cyan),
                 if (beat.mood != null) _chip(_translateMood(beat.mood!), Icons.mood, LG.pink),
+                _chip('${beat.playCount ?? 0} прослуш.', Icons.headphones, LG.textMuted),
               ]),
               if (beat.tagNames.isNotEmpty) ...[
                 const SizedBox(height: 14),

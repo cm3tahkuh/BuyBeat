@@ -1,0 +1,25 @@
+{
+  "kind": "collectionType",
+  "collectionName": "favorites",
+  "info": {
+    "singularName": "favorite",
+    "pluralName": "favorites",
+    "displayName": "Favorite"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "users_permissions_user": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "beat": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::beat.beat"
+    }
+  }
+}

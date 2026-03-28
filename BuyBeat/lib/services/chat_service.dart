@@ -57,6 +57,33 @@ class ChatService {
     return items.map((json) => Chat.fromJson(json)).toList();
   }
 
+  /// Получить чат по documentId (для навигации из уведомления)
+  Future<Chat?> getChatByDocumentId(String documentId) async {
+    try {
+      print('🔔 getChatByDocumentId: fetching $documentId ...');
+      final response = await _strapi.get(
+        StrapiConfig.chats,
+        queryParams: {
+          'filters[documentId][\$eq]': documentId,
+          'populate[users_permissions_users][populate]': 'avatar',
+          'populate[messages][fields][0]': 'text',
+          'populate[messages][fields][1]': 'type',
+          'populate[messages][fields][2]': 'createdAt',
+          'populate[messages][populate][file_attachment][fields][0]': 'mime',
+          'populate[messages][populate][file_attachment][fields][1]': 'name',
+          'pagination[pageSize]': '1',
+        },
+      );
+      final items = StrapiService.parseList(response);
+      print('🔔 getChatByDocumentId: got ${items.length} items');
+      if (items.isEmpty) return null;
+      return Chat.fromJson(items.first);
+    } catch (e) {
+      print('🔔 getChatByDocumentId error: $e');
+      return null;
+    }
+  }
+
   // Мьютекс для предотвращения параллельного создания чатов
   static Future<Chat>? _pendingCreate;
 

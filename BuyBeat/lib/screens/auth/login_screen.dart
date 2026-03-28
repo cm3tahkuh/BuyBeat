@@ -90,7 +90,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: const Icon(Icons.music_note_rounded, size: 40, color: Color(0xFF0A0A0F)),
                   ),
                   const SizedBox(height: 20),
-                  Text('BuyBeats', style: LG.h1),
+                  Text('BuyBeat', style: LG.h1),
                   const SizedBox(height: 4),
                   Text(
                     _isSignUp ? 'Создать аккаунт' : 'Добро пожаловать',

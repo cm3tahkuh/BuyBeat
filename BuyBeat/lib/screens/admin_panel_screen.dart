@@ -676,8 +676,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
 
   Widget _buildBeatCard(Map<String, dynamic> beat) {
     final title = beat['title'] ?? 'Без названия';
-    final price = beat['price']?.toString() ?? '0';
+    final price = beat['price_base']?.toString() ?? beat['price']?.toString() ?? '0';
     final id = beat['id'];
+    final playCount = beat['play_count'] as int? ?? 0;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -712,13 +713,19 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 2),
-                  Text(
-                    '\$$price • ID: $id',
-                    style: LG.font(
-                      color: LG.textMuted,
-                      size: 12,
+                  Row(children: [
+                    Text(
+                      '\$$price • ID: $id',
+                      style: LG.font(color: LG.textMuted, size: 12),
                     ),
-                  ),
+                    const SizedBox(width: 10),
+                    Icon(Icons.headphones, size: 12, color: LG.accent),
+                    const SizedBox(width: 3),
+                    Text(
+                      '$playCount',
+                      style: LG.font(color: LG.accent, size: 12, weight: FontWeight.w600),
+                    ),
+                  ]),
                 ],
               ),
             ),
@@ -879,6 +886,28 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   _users.where((u) => u['blocked'] == true).length.toString(),
                   Icons.block,
                   LG.red,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  'Прослушивания',
+                  _beats.fold<int>(0, (s, b) => s + ((b['play_count'] as int?) ?? 0)).toString(),
+                  Icons.headphones,
+                  LG.pink,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: _buildStatCard(
+                  'Публичных битов',
+                  _beats.where((b) => b['visibility'] == 'PUBLIC').length.toString(),
+                  Icons.public,
+                  LG.accent,
                 ),
               ),
             ],

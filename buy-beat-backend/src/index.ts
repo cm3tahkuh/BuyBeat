@@ -189,9 +189,10 @@ export default {
 
             if (!chatDocumentId) return;
 
-            // 2. Get chat participants
+            // 2. Get chat participants (use published status to match REST API ids)
             const chat = await strapi.documents('api::chat.chat').findOne({
               documentId: chatDocumentId,
+              status: 'published',
               populate: { users_permissions_users: { fields: ['id'] } },
             });
             if (!chat?.users_permissions_users?.length) return;
@@ -206,8 +207,13 @@ export default {
 
             const fullMessage = await strapi.documents('api::message.message').findOne({
               documentId: msgRow.document_id,
+              // Note: no status filter — default returns draft which has all content,
+              // and is guaranteed to exist at this point (this lifecycle fires on draft creation).
               populate: {
-                users_permissions_user: { fields: ['id', 'username', 'display_name'] },
+                users_permissions_user: {
+                  fields: ['id', 'username', 'display_name'],
+                  populate: { avatar: { fields: ['url'] } },
+                },
                 file_attachment: { fields: ['id', 'url', 'name', 'mime', 'size'] },
                 chat: { fields: ['id', 'documentId'] },
                 reply_to: {
@@ -220,6 +226,10 @@ export default {
             });
 
             // 4. Broadcast to participants
+            if (!fullMessage) {
+              strapi.log.warn('WS: fullMessage is null, skipping broadcast for messageRowId=' + messageRowId);
+              return;
+            }
             broadcast(participantIds, {
               type: 'new_message',
               chatId: chat.id,

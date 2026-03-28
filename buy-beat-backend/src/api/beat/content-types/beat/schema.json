@@ -76,6 +76,10 @@
       "relation": "oneToMany",
       "target": "api::beat-file.beat-file",
       "mappedBy": "beat"
+    },
+    "play_count": {
+      "type": "integer",
+      "default": 0
     }
   }
 }
