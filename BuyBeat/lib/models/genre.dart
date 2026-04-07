@@ -7,7 +7,6 @@ part 'genre.g.dart';
 class Genre {
   final int id;
   final String name;
-  final String? icon;
   @JsonKey(name: 'createdAt')
   final DateTime? createdAt;
   @JsonKey(name: 'updatedAt')
@@ -16,7 +15,6 @@ class Genre {
   Genre({
     required this.id,
     required this.name,
-    this.icon,
     this.createdAt,
     this.updatedAt,
   });

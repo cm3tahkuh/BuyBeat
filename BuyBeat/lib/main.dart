@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:audio_service/audio_service.dart';
 
 import 'config/glass_theme.dart';
 import 'screens/catalog_landing_page.dart';
@@ -11,6 +12,8 @@ import 'services/strapi_service.dart';
 import 'services/websocket_service.dart';
 import 'services/in_app_notification_service.dart';
 import 'services/native_notification_service.dart';
+import 'services/audio_handler.dart';
+import 'services/audio_player_service.dart';
 import 'widgets/global_player_bar.dart';
 import 'services/chat_service.dart';
 import 'services/auth_service.dart';
@@ -21,6 +24,28 @@ import 'screens/chat_conversation_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('ru', null);
+
+  // Инициализация системного медиаплеера (MediaSession)
+  print('🎵 Инициализация системного плеера...');
+  try {
+    final handler = await AudioService.init(
+      builder: () => BuyBeatAudioHandler(),
+      config: const AudioServiceConfig(
+        androidNotificationChannelId: 'com.example.beat_marketplace.audio',
+        androidNotificationChannelName: 'BuyBeat — Воспроизведение',
+        androidNotificationOngoing: true,
+        androidStopForegroundOnPause: true,
+        androidNotificationIcon: 'mipmap/ic_launcher',
+      ),
+    );
+    AudioPlayerService.instance.setHandler(handler);
+    print('✅ Системный плеер инициализирован');
+  } catch (e) {
+    // Fallback: создаём handler напрямую (без системного уведомления, но аудио работает)
+    print('⚠️ AudioService.init не удался ($e), используем fallback');
+    final fallback = BuyBeatAudioHandler();
+    AudioPlayerService.instance.setHandler(fallback);
+  }
   
   // Инициализация Strapi API сервиса
   print('🎵 Инициализация Strapi API...');

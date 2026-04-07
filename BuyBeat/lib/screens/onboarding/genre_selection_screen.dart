@@ -171,13 +171,6 @@ class _GenreSelectionScreenState extends State<GenreSelectionScreen> {
                                         child: Row(
                                           mainAxisAlignment: MainAxisAlignment.center,
                                           children: [
-                                            if (genre.icon != null) ...[
-                                              Text(
-                                                genre.icon!,
-                                                style: const TextStyle(fontSize: 20),
-                                              ),
-                                              const SizedBox(width: 8),
-                                            ],
                                             Text(
                                               genre.name,
                                               style: LG.font(

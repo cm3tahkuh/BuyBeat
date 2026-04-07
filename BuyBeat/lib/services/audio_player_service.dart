@@ -1,19 +1,50 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:just_audio/just_audio.dart';
+import 'audio_handler.dart';
 import '../models/beat.dart';
 
 enum RepeatMode { off, all, one }
 
 /// Global singleton audio player — ensures only ONE beat plays at a time.
+/// Интегрирован с системным медиаплеером Android через audio_service.
+/// Handler гарантированно инициализируется в main() до запуска UI.
 class AudioPlayerService {
   AudioPlayerService._();
   static final AudioPlayerService instance = AudioPlayerService._();
 
-  final AudioPlayer _player = AudioPlayer();
+  /// AudioHandler (от audio_service). Устанавливается ОБЯЗАТЕЛЬНО в main().
+  late BuyBeatAudioHandler _handler;
+
+  /// Текущий AudioPlayer — всегда из handler.
+  AudioPlayer get _player => _handler.player;
+
+  /// Установить handler после инициализации audio_service.
+  void setHandler(BuyBeatAudioHandler handler) {
+    _handler = handler;
+    handler.onSkipTrack = (delta) => skipTrack(delta);
+
+    // Подписываемся на стримы handler-плеера
+    final p = handler.player;
+    p.playerStateStream.listen((s) {
+      if (!_playerStateCtrl.isClosed) _playerStateCtrl.add(s);
+    });
+    p.positionStream.listen((pos) {
+      if (!_posCtrl.isClosed) _posCtrl.add(pos);
+    });
+    p.durationStream.listen((d) {
+      if (!_durCtrl.isClosed) _durCtrl.add(d);
+    });
+    _setupAutoAdvance(p);
+    debugPrint('AudioPlayerService: handler set, using audio_service player');
+  }
+
+  bool get isInitialized => true;
 
   Beat? _currentBeat;
   Beat? get currentBeat => _currentBeat;
-  bool get isPlaying => _player.playing && _player.processingState != ProcessingState.completed;
+  bool get isPlaying =>
+      _player.playing && _player.processingState != ProcessingState.completed;
 
   // Repeat mode
   RepeatMode _repeatMode = RepeatMode.off;
@@ -66,34 +97,55 @@ class AudioPlayerService {
     await play(_queue[next]);
   }
 
-  // ─── Streams ──────────────────────────────────────────────────────
-  Stream<PlayerState> get playerStateStream => _player.playerStateStream;
-  Stream<Duration> get positionStream => _player.positionStream;
-  Stream<Duration?> get durationStream => _player.durationStream;
+  // ─── Streams (broadcast — safe to listen before handler is ready) ─
+  final _playerStateCtrl = StreamController<PlayerState>.broadcast();
+  final _posCtrl = StreamController<Duration>.broadcast();
+  final _durCtrl = StreamController<Duration?>.broadcast();
+
+  Stream<PlayerState> get playerStateStream => _playerStateCtrl.stream;
+  Stream<Duration> get positionStream => _posCtrl.stream;
+  Stream<Duration?> get durationStream => _durCtrl.stream;
 
   ProcessingState get processingState => _player.processingState;
 
-  /// Auto-advance (only set up once for the singleton lifetime)
-  bool _autoAdvanceSetUp = false;
+  /// Auto-advance listener
+  final Set<int> _autoAdvanceIds = {};
+
+  void _setupAutoAdvance(AudioPlayer p) {
+    final id = identityHashCode(p);
+    if (_autoAdvanceIds.contains(id)) return;
+    _autoAdvanceIds.add(id);
+    p.playerStateStream.listen((state) {
+      if (state.processingState == ProcessingState.completed &&
+          _repeatMode != RepeatMode.one) {
+        if (hasNext || _repeatMode == RepeatMode.all) {
+          skipTrack(1);
+        }
+      }
+    });
+  }
 
   Future<void> play(Beat beat) async {
-    if (!_autoAdvanceSetUp) {
-      _autoAdvanceSetUp = true;
-      _player.playerStateStream.listen((state) {
-        if (state.processingState == ProcessingState.completed && _repeatMode != RepeatMode.one) {
-          if (hasNext || _repeatMode == RepeatMode.all) {
-            skipTrack(1);
-          }
-        }
-      });
-    }
     _currentBeat = beat;
     final url = beat.audioPreviewUrl;
     if (url == null || url.isEmpty) return;
+
+    // Обновляем метаданные для системного плеера (обложка, название, артист)
+    final artistName = beat.producerName ?? 'BuyBeat';
+    await _handler.setCurrentTrack(
+      title: beat.title,
+      artist: artistName,
+      artworkUrl: beat.coverUrl,
+      duration: beat.durationSeconds != null
+          ? Duration(seconds: beat.durationSeconds!)
+          : null,
+    );
+
     try {
-      await _player.setUrl(url);
-      await _player.play();
-    } catch (_) {}
+      await _handler.playUrl(url);
+    } catch (e) {
+      debugPrint('AudioPlayerService.play error: $e');
+    }
   }
 
   /// Toggle play/pause for the current beat, or play a new one.
@@ -103,7 +155,7 @@ class AudioPlayerService {
       return;
     }
     if (_player.playing) {
-      await _player.pause();
+      await _handler.pause();
     } else {
       if (_player.processingState == ProcessingState.idle ||
           _player.processingState == ProcessingState.completed) {
@@ -114,20 +166,31 @@ class AudioPlayerService {
           }
         }
       }
-      await _player.play();
+      await _handler.play();
     }
   }
 
-  Future<void> pause() async => await _player.pause();
-  Future<void> resume() async => await _player.play();
-  Future<void> seek(Duration position) async => await _player.seek(position);
+  Future<void> pause() async {
+    await _handler.pause();
+  }
+
+  Future<void> resume() async {
+    await _handler.play();
+  }
+
+  Future<void> seek(Duration position) async {
+    await _handler.seek(position);
+  }
 
   Future<void> stop() async {
     _currentBeat = null;
-    await _player.stop();
+    await _handler.stop();
   }
 
   void dispose() {
     _player.dispose();
+    _playerStateCtrl.close();
+    _posCtrl.close();
+    _durCtrl.close();
   }
 }

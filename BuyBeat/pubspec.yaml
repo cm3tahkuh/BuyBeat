@@ -47,6 +47,9 @@ dependencies:
   web_socket_channel: ^3.0.2
   flutter_local_notifications: ^21.0.0
   web: ^1.1.1
+  audio_service: ^0.18.18
+  audio_session: ^0.1.21
+  rxdart: ^0.28.0
 
 dev_dependencies:
   flutter_test:

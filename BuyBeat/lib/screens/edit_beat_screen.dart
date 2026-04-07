@@ -454,7 +454,7 @@ class _EditBeatScreenState extends State<EditBeatScreen> {
               ),
             ),
             child: Text(
-              genre.icon != null ? '${genre.icon} ${genre.name}' : genre.name,
+              genre.name,
               style: LG.font(
                 color: selected ? LG.cyan : LG.textSecondary,
                 size: 14,

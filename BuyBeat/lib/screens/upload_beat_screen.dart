@@ -744,7 +744,7 @@ class _UploadBeatScreenState extends State<UploadBeatScreen> {
               ),
             ),
             child: Text(
-              genre.icon != null ? '${genre.icon} ${genre.name}' : genre.name,
+              genre.name,
               style: LG.font(
                 color: selected ? LG.accent : LG.textMuted,
                 size: 14,

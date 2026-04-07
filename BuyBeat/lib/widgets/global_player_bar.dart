@@ -4,6 +4,7 @@ import 'package:flutter/material.dart' hide RepeatMode;
 import '../config/glass_theme.dart';
 import '../models/beat.dart' as models;
 import '../services/audio_player_service.dart';
+import '../services/favorite_service.dart';
 import 'package:just_audio/just_audio.dart';
 
 class GlobalPlayerBar extends StatefulWidget {
@@ -171,6 +172,12 @@ class _GlobalPlayerBarState extends State<GlobalPlayerBar> {
                         visualDensity: VisualDensity.compact,
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                      ),
+                      // Favorite
+                      _FavoriteHeartButton(
+                        documentId: _nowPlaying?.documentId,
+                        size: 20,
+                        constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
                       ),
                       // Close
                       IconButton(
@@ -405,7 +412,7 @@ class _NowPlayingSheetState extends State<_NowPlayingSheet> {
             ),
           ]),
           const SizedBox(height: 12),
-          // Controls row with repeat
+          // Controls row with repeat + favorite
           Row(mainAxisAlignment: MainAxisAlignment.center, children: [
             // Repeat mode toggle
             IconButton(
@@ -442,8 +449,13 @@ class _NowPlayingSheetState extends State<_NowPlayingSheet> {
               icon: Icon(Icons.skip_next_rounded, color: nextColor),
               iconSize: 36,
             ),
-            // Spacer to balance repeat button
-            const SizedBox(width: 48),
+            const SizedBox(width: 8),
+            // Favorite heart
+            _FavoriteHeartButton(
+              documentId: beat.documentId,
+              size: 26,
+              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            ),
           ]),
         ]),
       ),
@@ -455,4 +467,41 @@ class _NowPlayingSheetState extends State<_NowPlayingSheet> {
         decoration: BoxDecoration(color: LG.bgLight, borderRadius: BorderRadius.circular(20)),
         child: Icon(Icons.music_note, color: LG.textMuted, size: 80),
       );
+}
+
+// ─── Reusable Favorite Heart Button ──────────────────────────────
+
+class _FavoriteHeartButton extends StatelessWidget {
+  final String? documentId;
+  final double size;
+  final BoxConstraints? constraints;
+
+  const _FavoriteHeartButton({
+    required this.documentId,
+    this.size = 22,
+    this.constraints,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: FavoriteService.instance,
+      builder: (context, _) {
+        final isFav = FavoriteService.instance.isFavorite(documentId);
+        return IconButton(
+          onPressed: documentId != null
+              ? () => FavoriteService.instance.toggle(documentId!)
+              : null,
+          icon: Icon(
+            isFav ? Icons.favorite : Icons.favorite_border,
+            color: isFav ? Colors.redAccent : LG.textMuted,
+            size: size,
+          ),
+          visualDensity: VisualDensity.compact,
+          padding: EdgeInsets.zero,
+          constraints: constraints ?? const BoxConstraints(minWidth: 36, minHeight: 36),
+        );
+      },
+    );
+  }
 }
