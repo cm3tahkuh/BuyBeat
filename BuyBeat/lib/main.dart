@@ -41,10 +41,7 @@ void main() async {
     AudioPlayerService.instance.setHandler(handler);
     print('✅ Системный плеер инициализирован');
   } catch (e) {
-    // Fallback: создаём handler напрямую (без системного уведомления, но аудио работает)
-    print('⚠️ AudioService.init не удался ($e), используем fallback');
-    final fallback = BuyBeatAudioHandler();
-    AudioPlayerService.instance.setHandler(fallback);
+    print('❌ Ошибка инициализации аудио: $e');
   }
   
   // Инициализация Strapi API сервиса

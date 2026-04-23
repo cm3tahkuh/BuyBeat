@@ -4,8 +4,8 @@ class StrapiConfig {
   /// Для локальной разработки: http://localhost:1337
   /// Для Android эмулятора: http://10.0.2.2:1337
   /// Для iOS симулятора: http://localhost:1337
-  static const String baseUrl = 'http://192.168.0.104:1337';
-  // static const String baseUrl = 'http://10.179.138.23:1337';
+  // static const String baseUrl = 'http://192.168.0.104:1337';
+  static const String baseUrl = 'http://10.179.138.23:1337';
 
   /// URL для API endpoints
   static const String apiUrl = '$baseUrl/api';
