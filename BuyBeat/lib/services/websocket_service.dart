@@ -54,6 +54,9 @@ class WebSocketService {
       debugPrint('WS: нет токена — подключение невозможно');
       return;
     }
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    _reconnectAttempt = 0;
     _intentionalClose = false;
     _doConnect(token);
   }
@@ -121,6 +124,7 @@ class WebSocketService {
       switch (type) {
         case 'auth_ok':
           _authenticatedUserId = data['userId'] as int?;
+          _reconnectAttempt = 0;
           _setConnected(true);
           debugPrint('WS: authenticated as user $_authenticatedUserId');
           break;

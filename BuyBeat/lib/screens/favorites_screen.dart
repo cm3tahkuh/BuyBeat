@@ -202,7 +202,7 @@ class _FavBeatCardState extends State<_FavBeatCard> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(beat.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: LG.font(weight: FontWeight.w700, size: 14)),
                 const SizedBox(height: 3),
-                Text('${beat.genreName ?? "—"} · ${beat.producerName ?? "Unknown"}', maxLines: 1, overflow: TextOverflow.ellipsis, style: LG.font(size: 12, color: LG.textSecondary)),
+                Text('${beat.genreName ?? "—"} · ${beat.producerName ?? "Продюсер"}', maxLines: 1, overflow: TextOverflow.ellipsis, style: LG.font(size: 12, color: LG.textSecondary)),
                 if (beat.playCount != null && beat.playCount! > 0) ...[
                   const SizedBox(height: 4),
                   Row(children: [

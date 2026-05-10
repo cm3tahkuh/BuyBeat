@@ -157,12 +157,17 @@ export default {
       async afterCreate(event) {
         // In Strapi v5 with Draft & Publish, afterCreate fires TWICE for a
         // single REST-API create-with-publishedAt call:
-        // 1) draft row  → published_at IS NULL
-        // 2) published row → published_at IS NOT NULL
+        // 1) draft row  → publishedAt/published_at IS NULL
+        // 2) published row → publishedAt/published_at IS NOT NULL
         // We must ONLY broadcast for the published row; broadcasting the draft
         // would cause duplicate notifications AND "disappearing messages" because
         // the draft row-id is not returned by the public REST API on reload.
-        if (!event.result?.published_at) return;
+        const publishedAt =
+          event.result?.publishedAt ??
+          event.result?.published_at ??
+          event.params?.data?.publishedAt ??
+          event.params?.data?.published_at;
+        if (!publishedAt) return;
 
         // Capture data we need INSIDE the lifecycle (before transaction closes).
         // event.params.data contains the input data passed to create(),

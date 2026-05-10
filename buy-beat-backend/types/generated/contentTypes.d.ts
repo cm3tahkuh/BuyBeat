@@ -577,6 +577,41 @@ export interface ApiFavoriteFavorite extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiFollowFollow extends Struct.CollectionTypeSchema {
+  collectionName: 'follows';
+  info: {
+    displayName: 'Follow';
+    pluralName: 'follows';
+    singularName: 'follow';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    follower: Schema.Attribute.Relation<
+      'manyToOne',
+      'plugin::users-permissions.user'
+    >;
+    following: Schema.Attribute.Relation<
+      'manyToOne',
+      'plugin::users-permissions.user'
+    >;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::follow.follow'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiGenreGenre extends Struct.CollectionTypeSchema {
   collectionName: 'genres';
   info: {
@@ -1301,6 +1336,7 @@ declare module '@strapi/strapi' {
       'api::beat.beat': ApiBeatBeat;
       'api::chat.chat': ApiChatChat;
       'api::favorite.favorite': ApiFavoriteFavorite;
+      'api::follow.follow': ApiFollowFollow;
       'api::genre.genre': ApiGenreGenre;
       'api::message.message': ApiMessageMessage;
       'api::purchase.purchase': ApiPurchasePurchase;

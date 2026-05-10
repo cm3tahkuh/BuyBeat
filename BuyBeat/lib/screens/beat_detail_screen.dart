@@ -13,6 +13,7 @@ import '../services/purchase_service.dart';
 import '../services/favorite_service.dart';
 import 'cart_screen.dart';
 import 'edit_beat_screen.dart';
+import 'user_profile_screen.dart';
 
 const _moodRu = {
   'aggressive': 'Агрессивный', 'calm': 'Спокойный', 'dark': 'Тёмный',
@@ -111,6 +112,17 @@ class _BeatDetailScreenState extends State<BeatDetailScreen> {
 
   Future<void> _playPause() async {
     _audio.playPause(beat: beat);
+  }
+
+  void _openProducerProfile() {
+    final pid = beat.producerId;
+    if (pid == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => UserProfileScreen(userId: pid),
+      ),
+    );
   }
 
   @override
@@ -215,7 +227,7 @@ class _BeatDetailScreenState extends State<BeatDetailScreen> {
               const SizedBox(height: 20),
               Text(beat.title, style: LG.h1),
               const SizedBox(height: 6),
-              GestureDetector(onTap: () {}, child: Text('by ${beat.producerName ?? "Unknown"}', style: LG.font(size: 15, color: LG.cyan, weight: FontWeight.w600))),
+              GestureDetector(onTap: _openProducerProfile, child: Text('by ${beat.producerName ?? "Продюсер"}', style: LG.font(size: 15, color: LG.cyan, weight: FontWeight.w600))),
               const SizedBox(height: 18),
               Wrap(spacing: 10, runSpacing: 10, children: [
                 if (beat.genreName != null) _chip(beat.genreName!, Icons.album, LG.accent),
@@ -234,6 +246,8 @@ class _BeatDetailScreenState extends State<BeatDetailScreen> {
               _buildPrice(),
               const SizedBox(height: 24),
               _buildFiles(),
+              const SizedBox(height: 16),
+              _buildProducerProfileCard(),
               const SizedBox(height: 40),
             ])),
           ]),
@@ -400,6 +414,54 @@ class _BeatDetailScreenState extends State<BeatDetailScreen> {
         Icon(icon, size: 14, color: color), const SizedBox(width: 6),
         Text(label, style: LG.font(color: color, weight: FontWeight.w600, size: 13)),
       ]),
+    );
+  }
+
+  Widget _buildProducerProfileCard() {
+    final producerName = beat.producerName ?? 'Продюсер';
+    return GlassPanel(
+      padding: const EdgeInsets.all(14),
+      borderRadius: 16,
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: LG.accent.withValues(alpha: 0.18),
+            ),
+            child: Icon(Icons.person, color: LG.accent, size: 24),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Профиль продюсера', style: LG.font(size: 12, color: LG.textMuted)),
+                const SizedBox(height: 2),
+                Text(
+                  producerName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: LG.font(size: 15, weight: FontWeight.w700),
+                ),
+              ],
+            ),
+          ),
+          GestureDetector(
+            onTap: _openProducerProfile,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: LG.cyan),
+              ),
+              child: Text('Открыть', style: LG.font(color: LG.cyan, weight: FontWeight.w700, size: 12)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -71,12 +71,34 @@ class NativeNotificationService {
       onDidReceiveNotificationResponse: _onNotificationResponse,
     );
 
-    // Запрашиваем разрешение на Android 13+
+    // Принудительно пересоздаём Android-канал с актуальными настройками.
+    // Android кэширует каналы — importance и vibration нельзя поменять без
+    // удаления и пересоздания канала. Делаем это при каждом запуске.
     if (!kIsWeb && Platform.isAndroid) {
-      await _plugin
+      final androidImpl = _plugin
           .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>()
-          ?.requestNotificationsPermission();
+              AndroidFlutterLocalNotificationsPlugin>();
+      if (androidImpl != null) {
+        // Удаляем старый канал (если есть) чтобы сбросить кэшированные настройки
+        await androidImpl.deleteNotificationChannel(channelId: 'chat_messages');
+        // Создаём канал с нужными параметрами
+        final vibrationPattern = Int64List.fromList([0, 400, 200, 400]);
+        await androidImpl.createNotificationChannel(
+          AndroidNotificationChannel(
+            'chat_messages',
+            'Сообщения чата',
+            description: 'Уведомления о новых сообщениях в чатах',
+            importance: Importance.max,
+            playSound: true,
+            enableVibration: true,
+            vibrationPattern: vibrationPattern,
+            enableLights: true,
+            showBadge: true,
+          ),
+        );
+        // Запрашиваем разрешение на Android 13+
+        await androidImpl.requestNotificationsPermission();
+      }
     }
 
     // Запрашиваем разрешение на iOS

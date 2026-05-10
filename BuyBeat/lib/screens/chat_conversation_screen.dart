@@ -15,6 +15,7 @@ import '../services/websocket_service.dart';
 import '../services/in_app_notification_service.dart';
 import '../services/audio_player_service.dart';
 import '../services/unread_count_service.dart';
+import 'media_viewer_screen.dart';
 
 /// Экран переписки в конкретном чате
 class ChatConversationScreen extends StatefulWidget {
@@ -378,6 +379,26 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         }
       }
     }
+  }
+
+  Future<void> _openImageInApp(String url) async {
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MediaViewerScreen.image(imageUrl: url),
+      ),
+    );
+  }
+
+  Future<void> _openVideoInApp(String url, {String? title}) async {
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => VideoViewerScreen(videoUrl: url, title: title),
+      ),
+    );
   }
 
   Future<void> _playAudioInApp(Message msg) async {
@@ -992,7 +1013,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   /// Превью изображения
   Widget _buildImageAttachment(Message msg) {
     return GestureDetector(
-      onTap: () => _openFileUrl(msg.fileUrl!),
+      onTap: () => _openImageInApp(msg.fileUrl!),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(LG.radiusS),
         child: ConstrainedBox(
@@ -1073,7 +1094,10 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   /// Карточка видео
   Widget _buildVideoAttachment(Message msg, bool isMe) {
     return GestureDetector(
-      onTap: () => _openFileUrl(msg.fileUrl!),
+      onTap: () => _openVideoInApp(
+        msg.fileUrl!,
+        title: msg.fileName ?? 'Видео',
+      ),
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(

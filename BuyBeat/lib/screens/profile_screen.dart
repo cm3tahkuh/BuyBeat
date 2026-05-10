@@ -6,6 +6,7 @@ import '../services/auth_service.dart';
 import '../services/audio_player_service.dart';
 import '../services/beat_service.dart';
 import '../services/strapi_service.dart';
+import '../services/follow_service.dart';
 import '../models/user.dart';
 import '../models/beat.dart';
 import '../config/strapi_config.dart';
@@ -17,6 +18,9 @@ import 'upload_beat_screen.dart';
 import 'beat_detail_screen.dart';
 import 'edit_beat_screen.dart';
 import 'favorites_screen.dart';
+import 'activity_notifications_screen.dart';
+import 'my_following_screen.dart';
+import 'media_viewer_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -26,11 +30,14 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final _authService = AuthService();
   final _beatService = BeatService.instance;
+  final _followService = FollowService.instance;
   User? _user;
   List<Beat> _myBeats = [];
   bool _isLoading = true;
   bool _isEditingBio = false;
   final _bioController = TextEditingController();
+  int _followersCount = 0;
+  int _likesOnBeatsCount = 0;
 
   @override void initState() { super.initState(); _loadUserData(); }
   @override void dispose() { _bioController.dispose(); super.dispose(); }
@@ -40,8 +47,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final user = await _authService.getCurrentUser();
       List<Beat> beats = [];
+      int followersCount = 0;
+      int likesCount = 0;
       if (user != null) { try { beats = await _beatService.getBeatsByProducer(user.id); } catch (_) {} }
-      if (mounted) setState(() { _user = user; _myBeats = beats; _bioController.text = user?.bio ?? ''; _isLoading = false; });
+      if (user != null) {
+        try {
+          final profile = await _followService.getPublicProfile(user.id);
+          followersCount = profile.followersCount;
+          likesCount = profile.likesCount;
+        } catch (_) {}
+      }
+      if (mounted) setState(() { _user = user; _myBeats = beats; _bioController.text = user?.bio ?? ''; _followersCount = followersCount; _likesOnBeatsCount = likesCount; _isLoading = false; });
     } catch (e) {
       if (mounted) { setState(() => _isLoading = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка загрузки профиля: $e'))); }
     }
@@ -93,6 +109,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _authService.invalidateCache(); await _loadUserData();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Аватар обновлён')));
     } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка загрузки аватара: $e'))); }
+  }
+
+  void _openAvatarPreview() {
+    final avatar = _user?.avatarUrl;
+    if (avatar == null || avatar.isEmpty) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => MediaViewerScreen.image(imageUrl: avatar)),
+    );
   }
 
   Future<void> _editBeat(Beat beat) async {
@@ -211,9 +236,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
           padding: EdgeInsets.all(isWide ? 24 : 16),
           borderRadius: 20,
           borderColor: LG.accent.withValues(alpha: 0.3),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          child: Stack(children: [
+            Positioned(
+              right: 0,
+              top: 0,
+              child: GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const ActivityNotificationsScreen(),
+                  ),
+                ),
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: LG.panelFill,
+                    border: Border.all(color: LG.border),
+                  ),
+                  child: Icon(Icons.notifications_none_rounded, color: LG.textPrimary, size: 20),
+                ),
+              ),
+            ),
+            Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
             // Avatar
-            GestureDetector(onTap: _pickAvatar, child: Stack(alignment: Alignment.bottomRight, children: [
+            GestureDetector(onTap: _openAvatarPreview, child: Stack(alignment: Alignment.bottomRight, children: [
               Container(
                 width: isWide ? 100 : 80,
                 height: isWide ? 100 : 80,
@@ -221,8 +269,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   gradient: _user!.avatarUrl != null ? null : LG.accentGradient,
                   image: _user!.avatarUrl != null ? DecorationImage(image: NetworkImage(_user!.avatarUrl!), fit: BoxFit.cover) : null),
                 child: _user!.avatarUrl == null ? Icon(Icons.person, size: isWide ? 50 : 40, color: const Color(0xFF0A0A0F)) : null),
-              Container(padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: LG.accent, shape: BoxShape.circle),
-                child: const Icon(Icons.camera_alt, color: Color(0xFF0A0A0F), size: 16)),
+              GestureDetector(
+                onTap: _pickAvatar,
+                child: Container(padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: LG.accent, shape: BoxShape.circle),
+                  child: const Icon(Icons.camera_alt, color: Color(0xFF0A0A0F), size: 16)),
+              ),
             ])),
             const SizedBox(height: 12),
             GestureDetector(onTap: _editDisplayName, child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -245,6 +296,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Flexible(child: Text(_user!.email!, style: LG.font(color: LG.textMuted, size: 12), overflow: TextOverflow.ellipsis)),
               ]),
             ],
+            const SizedBox(height: 10),
+            Row(children: [
+              Expanded(child: _buildStatItem('Подписчики', _followersCount.toString())),
+              Expanded(child: _buildStatItem('Лайки', _likesOnBeatsCount.toString())),
+            ]),
             const SizedBox(height: 14),
             // Bio
             GlassPanel(padding: const EdgeInsets.all(14), borderRadius: 12,
@@ -290,9 +346,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Text('Выйти из аккаунта', style: LG.font(color: LG.red, weight: FontWeight.w600, size: 14)),
                 ])))),
           ]),
+          ]),
         );
 
         final menuPanel = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          _menuBtn(Icons.people_alt_outlined, 'Мои подписки', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MyFollowingScreen())), color: LG.cyan),
           _menuBtn(Icons.favorite, 'Избранное', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FavoritesScreen())), color: LG.pink),
           _menuBtn(Icons.bar_chart, 'Статистика', _showStatsDialog),
           _menuBtn(Icons.account_balance_wallet, 'Кошелёк', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PurchaseHistoryScreen()))),

@@ -546,7 +546,7 @@ class _BeatCardState extends State<_BeatCard> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(widget.beat.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: LG.font(weight: FontWeight.w700, size: 14)),
                 const SizedBox(height: 3),
-                Text('${widget.beat.genreName ?? "—"} · ${widget.beat.producerName ?? "Unknown"}', maxLines: 1, overflow: TextOverflow.ellipsis, style: LG.font(size: 12, color: LG.textSecondary)),
+                Text('${widget.beat.genreName ?? "—"} · ${widget.beat.producerName ?? "Продюсер"}', maxLines: 1, overflow: TextOverflow.ellipsis, style: LG.font(size: 12, color: LG.textSecondary)),
                 if (widget.beat.bpm != null || widget.beat.key != null) ...[
                   const SizedBox(height: 4),
                   Text([if (widget.beat.bpm != null) '${widget.beat.bpm} BPM', if (widget.beat.key != null) widget.beat.key!].join(' · '), style: LG.font(size: 11, color: LG.textMuted)),

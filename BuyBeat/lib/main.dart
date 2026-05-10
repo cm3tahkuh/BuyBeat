@@ -19,6 +19,7 @@ import 'services/chat_service.dart';
 import 'services/auth_service.dart';
 import 'services/favorite_service.dart';
 import 'services/unread_count_service.dart';
+import 'services/cart_service.dart';
 import 'models/chat.dart';
 import 'screens/chat_conversation_screen.dart';
 
@@ -152,6 +153,7 @@ class _BeatMarketplaceAppState extends State<BeatMarketplaceApp> {
   void initState() {
     super.initState();
     UnreadCountService.instance.addListener(_onUnreadChanged);
+    CartService.instance.addListener(_onCartChanged);
   }
 
   void _onUnreadChanged() {
@@ -161,7 +163,12 @@ class _BeatMarketplaceAppState extends State<BeatMarketplaceApp> {
   @override
   void dispose() {
     UnreadCountService.instance.removeListener(_onUnreadChanged);
+    CartService.instance.removeListener(_onCartChanged);
     super.dispose();
+  }
+
+  void _onCartChanged() {
+    if (mounted) setState(() {});
   }
 
   /// Открыть чат с конкретным пользователем (вызывается из BeatDetailScreen)
@@ -266,7 +273,8 @@ class _BeatMarketplaceAppState extends State<BeatMarketplaceApp> {
                       _buildNavItem(Icons.home_rounded, 0),
                       _buildNavItem(Icons.chat_bubble_rounded, 1,
                           badge: UnreadCountService.instance.totalUnread),
-                      _buildNavItem(Icons.shopping_bag_rounded, 2),
+                      _buildNavItem(Icons.shopping_bag_rounded, 2,
+                          badge: CartService.instance.itemCount),
                       _buildNavItem(Icons.person_rounded, 3),
                     ],
                   ),
