@@ -50,6 +50,10 @@ class _GlobalPlayerBarState extends State<GlobalPlayerBar> {
       if (mounted) setState(() => _duration = d ?? Duration.zero);
     });
     _nowPlaying = _audio.currentBeat;
+    // Seed current position/duration so seek works immediately without
+    // waiting for the first stream event (broadcast streams don't replay).
+    _position = _audio.currentPosition;
+    _duration = _audio.currentDuration;
   }
 
   @override
@@ -65,53 +69,63 @@ class _GlobalPlayerBarState extends State<GlobalPlayerBar> {
 
   @override
   Widget build(BuildContext context) {
+    if (_audio.playbackSource == PlaybackSource.chatAttachment) {
+      return const SizedBox.shrink();
+    }
     if (_nowPlaying == null) return const SizedBox.shrink();
 
     final progress = _duration.inMilliseconds > 0
         ? (_position.inMilliseconds / _duration.inMilliseconds).clamp(0.0, 1.0)
         : 0.0;
 
-    return GestureDetector(
-      onTap: () => _openNowPlaying(context),
-      onHorizontalDragEnd: (details) {
-        final v = details.primaryVelocity ?? 0;
-        if (v < -400 && _canNext) _skipTrack(1);
-        if (v > 400 && _canPrev) _skipTrack(-1);
-      },
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-          child: Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFF101015).withValues(alpha: 0.85),
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.10),
-                width: 0.5,
-              ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(28),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF101015).withValues(alpha: 0.85),
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.10),
+              width: 0.5,
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-                  child: SizedBox(
-                    height: 3,
-                    child: Stack(
-                      children: [
-                        Container(color: Colors.white.withValues(alpha: 0.08)),
-                        FractionallySizedBox(
-                          widthFactor: progress,
-                          child: Container(
-                            decoration: const BoxDecoration(gradient: LG.accentGradient),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                child: SizedBox(
+                  height: 14,
+                  width: double.infinity,
+                  child: Center(
+                    child: SizedBox(
+                      height: 3,
+                      width: double.infinity,
+                      child: Stack(
+                        children: [
+                          Container(color: Colors.white.withValues(alpha: 0.08)),
+                          FractionallySizedBox(
+                            widthFactor: progress,
+                            child: Container(
+                              decoration: const BoxDecoration(gradient: LG.accentGradient),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
-                Padding(
+              ),
+              GestureDetector(
+                onTap: () => _openNowPlaying(context),
+                onHorizontalDragEnd: (details) {
+                  final v = details.primaryVelocity ?? 0;
+                  if (v < -400 && _canNext) _skipTrack(1);
+                  if (v > 400 && _canPrev) _skipTrack(-1);
+                },
+                child: Padding(
                   padding: const EdgeInsets.fromLTRB(12, 8, 8, 10),
                   child: Row(
                     children: [
@@ -190,8 +204,8 @@ class _GlobalPlayerBarState extends State<GlobalPlayerBar> {
                     ],
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -260,6 +274,8 @@ class _NowPlayingSheetState extends State<_NowPlayingSheet> {
   Duration _duration = Duration.zero;
   bool _isPlaying = false;
   RepeatMode _repeatMode = RepeatMode.off;
+  /// Visual value while user drags slider; null when not dragging.
+  double? _sliderDragValue;
 
   StreamSubscription<Duration>? _posSub;
   StreamSubscription<Duration?>? _durSub;
@@ -272,6 +288,9 @@ class _NowPlayingSheetState extends State<_NowPlayingSheet> {
     _beat = _audio.currentBeat;
     _isPlaying = _audio.isPlaying;
     _repeatMode = _audio.repeatMode;
+    // Seed from service so existing values are shown without waiting for stream.
+    _position = _audio.currentPosition;
+    _duration = _audio.currentDuration;
 
     _posSub = _audio.positionStream.listen((p) {
       if (mounted) setState(() => _position = p);
@@ -399,14 +418,20 @@ class _NowPlayingSheetState extends State<_NowPlayingSheet> {
                 overlayColor: LG.accent.withValues(alpha: 0.15),
               ),
               child: Slider(
-                value: progress.toDouble(),
-                onChanged: (v) => _audio.seek(Duration(milliseconds: (_duration.inMilliseconds * v).round())),
+                value: (_sliderDragValue ?? progress).toDouble(),
+                onChanged: (v) => setState(() => _sliderDragValue = v),
+                onChangeEnd: (v) {
+                  _audio.seek(Duration(milliseconds: (_duration.inMilliseconds * v).round()));
+                  setState(() => _sliderDragValue = null);
+                },
               ),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                Text(_fmt(_position), style: LG.font(size: 11, color: LG.textMuted)),
+                Text(_fmt(_sliderDragValue != null
+                    ? Duration(milliseconds: (_duration.inMilliseconds * _sliderDragValue!).round())
+                    : _position), style: LG.font(size: 11, color: LG.textMuted)),
                 Text(_fmt(_duration), style: LG.font(size: 11, color: LG.textMuted)),
               ]),
             ),

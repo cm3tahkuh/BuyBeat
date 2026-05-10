@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../config/glass_theme.dart';
@@ -12,6 +13,7 @@ import '../models/message.dart';
 import '../services/chat_service.dart';
 import '../services/websocket_service.dart';
 import '../services/in_app_notification_service.dart';
+import '../services/audio_player_service.dart';
 
 /// Экран переписки в конкретном чате
 class ChatConversationScreen extends StatefulWidget {
@@ -30,6 +32,7 @@ class ChatConversationScreen extends StatefulWidget {
 
 class _ChatConversationScreenState extends State<ChatConversationScreen> {
   final _chatService = ChatService.instance;
+  final _audioService = AudioPlayerService.instance;
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
 
@@ -40,6 +43,16 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   bool _isLoading = true;
   bool _isSending = false;
   StreamSubscription? _wsSub;
+  StreamSubscription<PlayerState>? _audioStateSub;
+  StreamSubscription<Duration>? _audioPosSub;
+  StreamSubscription<Duration?>? _audioDurSub;
+
+  bool _showChatAudioPanel = false;
+  bool _chatAudioPlaying = false;
+  Duration _chatAudioPosition = Duration.zero;
+  Duration _chatAudioDuration = Duration.zero;
+  String? _chatAudioTitle;
+  String? _chatAudioUrl;
 
   /// Сообщение, на которое отвечаем (reply-to)
   Message? _replyToMessage;
@@ -56,11 +69,38 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     // Сообщаем NotificationService что этот чат открыт
     InAppNotificationService.instance.activeChatId = widget.chat.id;
     InAppNotificationService.instance.activeChatDocumentId = widget.chat.documentId;
+
+    _audioStateSub = _audioService.playerStateStream.listen((state) {
+      if (!mounted || !_showChatAudioPanel) return;
+      final isCurrent = _isCurrentChatAudio();
+      if (!isCurrent) {
+        setState(() => _showChatAudioPanel = false);
+        return;
+      }
+      setState(() {
+        _chatAudioPlaying =
+            state.playing && state.processingState != ProcessingState.completed;
+      });
+    });
+    _audioPosSub = _audioService.positionStream.listen((pos) {
+      if (!mounted || !_showChatAudioPanel || !_isCurrentChatAudio()) return;
+      setState(() => _chatAudioPosition = pos);
+    });
+    _audioDurSub = _audioService.durationStream.listen((dur) {
+      if (!mounted || !_showChatAudioPanel || !_isCurrentChatAudio()) return;
+      setState(() => _chatAudioDuration = dur ?? Duration.zero);
+    });
   }
 
   @override
   void dispose() {
+    if (_audioService.playbackSource == PlaybackSource.chatAttachment) {
+      _audioService.stop();
+    }
     _wsSub?.cancel();
+    _audioStateSub?.cancel();
+    _audioPosSub?.cancel();
+    _audioDurSub?.cancel();
     _controller.dispose();
     _scrollController.dispose();
     // Сбрасываем активный чат
@@ -336,6 +376,180 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     }
   }
 
+  Future<void> _playAudioInApp(Message msg) async {
+    final url = msg.fileUrl;
+    if (url == null || url.isEmpty) return;
+    try {
+      setState(() {
+        _showChatAudioPanel = true;
+        _chatAudioTitle = msg.fileName ?? 'Аудио из чата';
+        _chatAudioUrl = url;
+        _chatAudioPosition = Duration.zero;
+        _chatAudioDuration = Duration.zero;
+      });
+
+      await _audioService.playExternalUrl(
+        url: url,
+        title: msg.fileName ?? 'Аудио из чата',
+        artist: _otherName,
+        documentId: null,
+        source: PlaybackSource.chatAttachment,
+      );
+
+      if (mounted) {
+        setState(() {
+          _chatAudioPlaying = true;
+          _chatAudioDuration = _audioService.processingState == ProcessingState.idle
+              ? Duration.zero
+              : _chatAudioDuration;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Не удалось воспроизвести аудио')),
+        );
+      }
+    }
+  }
+
+  bool _isCurrentChatAudio() {
+    final currentUrl = _audioService.currentBeat?.audioPreviewUrl;
+    return _chatAudioUrl != null && currentUrl == _chatAudioUrl;
+  }
+
+  String _fmtAudio(Duration d) {
+    final total = d.inSeconds;
+    final m = (total ~/ 60).toString().padLeft(2, '0');
+    final s = (total % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  Future<void> _toggleChatAudioPlayPause() async {
+    if (!_isCurrentChatAudio()) return;
+    await _audioService.playPause();
+  }
+
+  Future<void> _seekChatAudio(Duration target) async {
+    if (!_isCurrentChatAudio()) return;
+    final max = _chatAudioDuration.inMilliseconds;
+    final nextMs = target.inMilliseconds.clamp(0, max > 0 ? max : 0);
+    await _audioService.seek(Duration(milliseconds: nextMs));
+  }
+
+  Future<void> _seekBySeconds(int seconds) async {
+    final next = _chatAudioPosition + Duration(seconds: seconds);
+    await _seekChatAudio(next);
+  }
+
+  Future<void> _stopChatAudio() async {
+    await _audioService.stop();
+    if (!mounted) return;
+    setState(() {
+      _showChatAudioPanel = false;
+      _chatAudioPlaying = false;
+      _chatAudioPosition = Duration.zero;
+      _chatAudioDuration = Duration.zero;
+    });
+  }
+
+  Widget _buildChatAudioPanel() {
+    final maxMs = _chatAudioDuration.inMilliseconds;
+    final curMs = _chatAudioPosition.inMilliseconds.clamp(0, maxMs > 0 ? maxMs : 0);
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+      decoration: BoxDecoration(
+        color: LG.panelFill,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: LG.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.audiotrack, color: LG.orange, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _chatAudioTitle ?? 'Аудио из чата',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: LG.font(color: LG.textPrimary, size: 14, weight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          SliderTheme(
+            data: SliderThemeData(
+              trackHeight: 4,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+              activeTrackColor: LG.accent,
+              inactiveTrackColor: Colors.white12,
+              thumbColor: LG.accent,
+            ),
+            child: Slider(
+              min: 0,
+              max: maxMs > 0 ? maxMs.toDouble() : 1,
+              value: maxMs > 0 ? curMs.toDouble() : 0,
+              onChanged: maxMs > 0
+                  ? (value) => _seekChatAudio(Duration(milliseconds: value.toInt()))
+                  : null,
+            ),
+          ),
+          Row(
+            children: [
+              Text(
+                _fmtAudio(_chatAudioPosition),
+                style: LG.font(color: LG.textMuted, size: 11),
+              ),
+              const Spacer(),
+              IconButton(
+                onPressed: () => _seekBySeconds(-10),
+                icon: Icon(Icons.replay_10, color: LG.textSecondary, size: 28),
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+              ),
+              IconButton(
+                onPressed: _toggleChatAudioPlayPause,
+                icon: Icon(
+                  _chatAudioPlaying ? Icons.pause_circle_filled : Icons.play_circle_fill,
+                  color: LG.accent,
+                  size: 40,
+                ),
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 52, minHeight: 52),
+              ),
+              IconButton(
+                onPressed: () => _seekBySeconds(10),
+                icon: Icon(Icons.forward_10, color: LG.textSecondary, size: 28),
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+              ),
+              IconButton(
+                onPressed: _stopChatAudio,
+                icon: Icon(Icons.stop_circle_outlined, color: LG.textMuted, size: 30),
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                _fmtAudio(_chatAudioDuration),
+                style: LG.font(color: LG.textMuted, size: 11),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   String _formatDateDivider(DateTime date) {
     final local = date.toLocal();
     final now = DateTime.now();
@@ -416,6 +630,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                         },
                       ),
           ),
+
+          if (_showChatAudioPanel) _buildChatAudioPanel(),
 
           // Превью ответа на сообщение
           if (_replyToMessage != null) _buildReplyPreview(),
@@ -804,7 +1020,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   /// Карточка аудио
   Widget _buildAudioAttachment(Message msg, bool isMe) {
     return GestureDetector(
-      onTap: () => _openFileUrl(msg.fileUrl!),
+      onTap: () => _playAudioInApp(msg),
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(

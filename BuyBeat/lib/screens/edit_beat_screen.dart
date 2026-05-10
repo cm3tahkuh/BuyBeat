@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../config/glass_theme.dart';
+import '../config/strapi_config.dart';
 import '../models/beat.dart';
 import '../models/genre.dart';
 import '../models/tag.dart';
 import '../services/beat_service.dart';
+import '../services/strapi_service.dart';
 
 /// Экран редактирования бита — используется и админом и продюсером
 class EditBeatScreen extends StatefulWidget {
@@ -19,6 +22,7 @@ class EditBeatScreen extends StatefulWidget {
 class _EditBeatScreenState extends State<EditBeatScreen> {
   final _formKey = GlobalKey<FormState>();
   final _beatService = BeatService.instance;
+  final _strapi = StrapiService.instance;
 
   late TextEditingController _titleController;
   late TextEditingController _bpmController;
@@ -36,6 +40,9 @@ class _EditBeatScreenState extends State<EditBeatScreen> {
   bool _isLoading = true;
   bool _isSaving = false;
   BeatVisibility _visibility = BeatVisibility.public;
+  PlatformFile? _newCoverFile;
+  bool _removeCover = false;
+  int? _existingCoverId;
 
   static const List<String> _musicalKeys = [
     'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B',
@@ -65,6 +72,7 @@ class _EditBeatScreenState extends State<EditBeatScreen> {
     _selectedKey = b.key;
     _selectedMood = b.mood;
     _visibility = b.visibility;
+    _existingCoverId = b.cover?['id'] as int?;
     _loadData();
   }
 
@@ -139,9 +147,36 @@ class _EditBeatScreenState extends State<EditBeatScreen> {
 
     setState(() => _isSaving = true);
     try {
+      int? newCoverId;
+      if (_newCoverFile != null) {
+        final f = _newCoverFile!;
+        if (f.bytes != null) {
+          final uploaded = await _strapi.uploadFileBytes(
+            bytes: f.bytes!,
+            fileName: f.name,
+          );
+          if (uploaded.isEmpty) {
+            throw Exception('Не удалось загрузить новую обложку');
+          }
+          newCoverId = uploaded.first['id'] as int?;
+        } else if (f.path != null && f.path!.isNotEmpty) {
+          final uploaded = await _strapi.uploadFile(
+            filePath: f.path!,
+            fileName: f.name,
+          );
+          if (uploaded.isEmpty) {
+            throw Exception('Не удалось загрузить новую обложку');
+          }
+          newCoverId = uploaded.first['id'] as int?;
+        } else {
+          throw Exception('Файл обложки недоступен для загрузки');
+        }
+      }
+
       final resolvedTagIds = await _resolveTagIds();
       final tagIdsArg = resolvedTagIds.isEmpty ? null : resolvedTagIds;
       final docId = widget.beat.documentId;
+      final shouldClearCover = _removeCover && newCoverId == null;
       await (docId != null
           ? _beatService.updateBeatByDocId(
               docId,
@@ -153,6 +188,8 @@ class _EditBeatScreenState extends State<EditBeatScreen> {
               mood: _selectedMood,
               visibility: _visibility,
               tagIds: tagIdsArg,
+              coverId: newCoverId,
+              clearCover: shouldClearCover,
             )
           : _beatService.updateBeat(
               widget.beat.id,
@@ -164,7 +201,19 @@ class _EditBeatScreenState extends State<EditBeatScreen> {
               mood: _selectedMood,
               visibility: _visibility,
               tagIds: tagIdsArg,
+              coverId: newCoverId,
+              clearCover: shouldClearCover,
             ));
+
+      // Пытаемся удалить старую обложку из upload, если она была заменена/удалена
+      final oldCoverId = _existingCoverId;
+      if (oldCoverId != null && (_removeCover || newCoverId != null) && oldCoverId != newCoverId) {
+        try {
+          await _strapi.delete('${StrapiConfig.apiUrl}/upload/$oldCoverId');
+        } catch (_) {
+          // Не блокируем сохранение, если удаление файла не удалось
+        }
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -176,6 +225,107 @@ class _EditBeatScreenState extends State<EditBeatScreen> {
       setState(() => _isSaving = false);
       _showError('Ошибка сохранения: $e');
     }
+  }
+
+  Future<void> _pickCoverImage() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        withData: true,
+        allowMultiple: false,
+      );
+      if (result != null && result.files.isNotEmpty) {
+        setState(() {
+          _newCoverFile = result.files.first;
+          _removeCover = false;
+        });
+      }
+    } catch (e) {
+      _showError('Ошибка выбора обложки: $e');
+    }
+  }
+
+  void _markCoverForRemoval() {
+    setState(() {
+      _newCoverFile = null;
+      _removeCover = true;
+    });
+  }
+
+  Widget _buildCoverEditor() {
+    final hasSelectedNew = _newCoverFile != null;
+    final hasCurrent = !_removeCover && (widget.beat.coverUrl != null && widget.beat.coverUrl!.isNotEmpty);
+
+    Widget preview;
+    if (hasSelectedNew && _newCoverFile!.bytes != null) {
+      preview = Image.memory(
+        _newCoverFile!.bytes!,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _coverPlaceholder(),
+      );
+    } else if (hasCurrent) {
+      preview = Image.network(
+        widget.beat.coverUrl!,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _coverPlaceholder(),
+      );
+    } else {
+      preview = _coverPlaceholder();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: AspectRatio(
+            aspectRatio: 16 / 9,
+            child: Container(
+              color: LG.bgLight,
+              child: preview,
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            OutlinedButton.icon(
+              onPressed: _pickCoverImage,
+              icon: const Icon(Icons.image_outlined, size: 18),
+              label: Text(hasCurrent || hasSelectedNew ? 'Заменить обложку' : 'Добавить обложку'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: LG.textPrimary,
+                side: BorderSide(color: LG.border),
+                backgroundColor: LG.bgLight,
+              ),
+            ),
+            if (hasCurrent || hasSelectedNew)
+              OutlinedButton.icon(
+                onPressed: _markCoverForRemoval,
+                icon: const Icon(Icons.delete_outline, size: 18),
+                label: const Text('Удалить обложку'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: LG.red,
+                  side: BorderSide(color: LG.red.withValues(alpha: 0.6)),
+                  backgroundColor: LG.red.withValues(alpha: 0.08),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _coverPlaceholder() {
+    return Center(
+      child: Icon(
+        Icons.music_note,
+        color: LG.textMuted,
+        size: 46,
+      ),
+    );
   }
 
   void _showError(String msg) {
@@ -191,13 +341,14 @@ class _EditBeatScreenState extends State<EditBeatScreen> {
       appBar: GlassAppBar(
         title: 'Редактировать бит',
       ),
-      body: _isLoading
-          ? Center(child: CircularProgressIndicator(color: LG.accent))
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Form(
-                key: _formKey,
-                child: Column(
+      body: SafeArea(
+        child: _isLoading
+            ? Center(child: CircularProgressIndicator(color: LG.accent))
+            : SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 80, 24, 24),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // --- Title ---
@@ -208,6 +359,13 @@ class _EditBeatScreenState extends State<EditBeatScreen> {
                       hint: 'Night Vibes',
                       validator: (v) => (v == null || v.trim().isEmpty) ? 'Введите название' : null,
                     ),
+
+                    const SizedBox(height: 20),
+
+                    // --- Cover ---
+                    _sectionTitle('Обложка'),
+                    const SizedBox(height: 8),
+                    _buildCoverEditor(),
 
                     const SizedBox(height: 20),
 
@@ -334,6 +492,7 @@ class _EditBeatScreenState extends State<EditBeatScreen> {
                 ),
               ),
             ),
+      ),
     );
   }
 

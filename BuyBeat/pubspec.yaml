@@ -64,3 +64,7 @@ flutter:
   assets:
     - assets/fonts/
     - assets/icon/
+  fonts:
+    - family: Gorehand
+      fonts:
+        - asset: assets/fonts/Gorehand.otf

@@ -5,6 +5,7 @@ import 'audio_handler.dart';
 import '../models/beat.dart';
 
 enum RepeatMode { off, all, one }
+enum PlaybackSource { none, beat, chatAttachment, external }
 
 /// Global singleton audio player — ensures only ONE beat plays at a time.
 /// Интегрирован с системным медиаплеером Android через audio_service.
@@ -27,8 +28,11 @@ class AudioPlayerService {
     if (_fallbackStreamsSetUp) return;
     _fallbackStreamsSetUp = true;
     _fallbackPlayer.playerStateStream.listen((s) => _playerStateCtrl.add(s));
-    _fallbackPlayer.positionStream.listen((p) => _posCtrl.add(p));
-    _fallbackPlayer.durationStream.listen((d) => _durCtrl.add(d));
+    _fallbackPlayer.positionStream.listen((pos) => _posCtrl.add(pos));
+    _fallbackPlayer.durationStream.listen((d) {
+      _lastDuration = d;
+      _durCtrl.add(d);
+    });
     _setupAutoAdvance(_fallbackPlayer);
   }
 
@@ -40,16 +44,27 @@ class AudioPlayerService {
     final p = handler.player;
     // Переключаем стримы на handler-плеер
     p.playerStateStream.listen((s) => _playerStateCtrl.add(s));
-    p.positionStream.listen((p) => _posCtrl.add(p));
-    p.durationStream.listen((d) => _durCtrl.add(d));
+    p.positionStream.listen((pos) => _posCtrl.add(pos));
+    p.durationStream.listen((d) {
+      _lastDuration = d;
+      _durCtrl.add(d);
+    });
     _setupAutoAdvance(p);
     debugPrint('AudioPlayerService: handler set, using audio_service player');
   }
 
   bool get isInitialized => true; // всегда работает — fallback или handler
 
+  /// Текущая позиция воспроизведения (для инициализации виджетов без ожидания стрима).
+  Duration get currentPosition => _player.position;
+
+  /// Текущая длительность трека (для инициализации виджетов без ожидания стрима).
+  Duration get currentDuration => _player.duration ?? Duration.zero;
+
   Beat? _currentBeat;
   Beat? get currentBeat => _currentBeat;
+  PlaybackSource _playbackSource = PlaybackSource.none;
+  PlaybackSource get playbackSource => _playbackSource;
   bool get isPlaying =>
       _player.playing && _player.processingState != ProcessingState.completed;
 
@@ -109,9 +124,19 @@ class AudioPlayerService {
   final _posCtrl = StreamController<Duration>.broadcast();
   final _durCtrl = StreamController<Duration?>.broadcast();
 
+  /// Last received duration — used to replay to new listeners.
+  Duration? _lastDuration;
+
   Stream<PlayerState> get playerStateStream => _playerStateCtrl.stream;
   Stream<Duration> get positionStream => _posCtrl.stream;
-  Stream<Duration?> get durationStream => _durCtrl.stream;
+
+  /// Duration stream that immediately emits the cached last value to new
+  /// listeners, so widgets that subscribe after the track started loading
+  /// still get the correct duration without waiting for the next event.
+  Stream<Duration?> get durationStream async* {
+    yield _lastDuration;
+    yield* _durCtrl.stream;
+  }
 
   ProcessingState get processingState => _player.processingState;
 
@@ -132,9 +157,15 @@ class AudioPlayerService {
     });
   }
 
+  /// Generation counter for play() calls — ensures only the latest request
+  /// actually starts playback when multiple calls arrive in quick succession.
+  int _playGeneration = 0;
+
   Future<void> play(Beat beat) async {
     _ensureFallbackStreams();
+    final generation = ++_playGeneration;
     _currentBeat = beat;
+    _playbackSource = PlaybackSource.beat;
     final url = beat.audioPreviewUrl;
     if (url == null || url.isEmpty) return;
 
@@ -150,6 +181,56 @@ class AudioPlayerService {
             : null,
       );
     }
+    if (generation != _playGeneration) return; // superseded by newer call
+
+    try {
+      if (_handler != null) {
+        await _handler!.playUrl(url);
+      } else {
+        await _player.stop();
+        if (generation != _playGeneration) return;
+        await _player.setUrl(url);
+        if (generation != _playGeneration) return;
+        await _player.play();
+      }
+    } catch (e) {
+      debugPrint('AudioPlayerService.play error: $e');
+    }
+  }
+
+  /// Play arbitrary audio URL in the same internal/global player
+  /// (used for chat audio attachments).
+  Future<void> playExternalUrl({
+    required String url,
+    required String title,
+    String? artist,
+    String? artworkUrl,
+    String? documentId,
+    int? durationSeconds,
+    PlaybackSource source = PlaybackSource.external,
+  }) async {
+    _ensureFallbackStreams();
+    _playbackSource = source;
+
+    _currentBeat = Beat(
+      id: -DateTime.now().millisecondsSinceEpoch,
+      documentId: documentId,
+      title: title,
+      priceBase: 0,
+      durationSeconds: durationSeconds,
+      audioPreview: {'url': url},
+      cover: artworkUrl != null ? {'url': artworkUrl} : null,
+      producer: artist != null ? {'display_name': artist} : null,
+    );
+
+    if (_handler != null) {
+      await _handler!.setCurrentTrack(
+        title: title,
+        artist: artist ?? 'BuyBeat',
+        artworkUrl: artworkUrl,
+        duration: durationSeconds != null ? Duration(seconds: durationSeconds) : null,
+      );
+    }
 
     try {
       if (_handler != null) {
@@ -159,7 +240,7 @@ class AudioPlayerService {
         await _player.play();
       }
     } catch (e) {
-      debugPrint('AudioPlayerService.play error: $e');
+      debugPrint('AudioPlayerService.playExternalUrl error: $e');
     }
   }
 
@@ -220,6 +301,7 @@ class AudioPlayerService {
 
   Future<void> stop() async {
     _currentBeat = null;
+    _playbackSource = PlaybackSource.none;
     if (_handler != null) {
       await _handler!.stop();
     } else {

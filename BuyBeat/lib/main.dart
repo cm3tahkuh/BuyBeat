@@ -33,8 +33,7 @@ void main() async {
       config: const AudioServiceConfig(
         androidNotificationChannelId: 'com.example.beat_marketplace.audio',
         androidNotificationChannelName: 'BuyBeat — Воспроизведение',
-        androidNotificationOngoing: true,
-        androidStopForegroundOnPause: true,
+        androidStopForegroundOnPause: false,
         androidNotificationIcon: 'mipmap/ic_launcher',
       ),
     );

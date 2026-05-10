@@ -211,6 +211,8 @@ class BeatService {
     int? durationSeconds,
     BeatVisibility? visibility,
     List<int>? tagIds,
+    int? coverId,
+    bool clearCover = false,
   }) async {
     final data = <String, dynamic>{};
     
@@ -225,6 +227,11 @@ class BeatService {
       data['visibility'] = visibility == BeatVisibility.public ? 'PUBLIC' : 'SOLD_EXCLUSIVE';
     }
     if (tagIds != null) data['tags'] = tagIds;
+    if (clearCover) {
+      data['cover'] = null;
+    } else if (coverId != null) {
+      data['cover'] = coverId;
+    }
     
     final response = await _strapi.put(
       '${StrapiConfig.beats}/$id',
@@ -246,6 +253,8 @@ class BeatService {
     int? durationSeconds,
     BeatVisibility? visibility,
     List<int>? tagIds,
+    int? coverId,
+    bool clearCover = false,
   }) async {
     final data = <String, dynamic>{};
     if (title != null) data['title'] = title;
@@ -257,6 +266,11 @@ class BeatService {
     if (durationSeconds != null) data['duration_seconds'] = durationSeconds;
     if (visibility != null) data['visibility'] = visibility == BeatVisibility.public ? 'PUBLIC' : 'SOLD_EXCLUSIVE';
     if (tagIds != null) data['tags'] = tagIds;
+    if (clearCover) {
+      data['cover'] = null;
+    } else if (coverId != null) {
+      data['cover'] = coverId;
+    }
 
     final response = await _strapi.put(
       '${StrapiConfig.beats}/$documentId',

@@ -29,6 +29,15 @@ class BuyBeatAudioHandler extends BaseAudioHandler with SeekHandler {
     // Транслируем события just_audio → PlaybackState для MediaSession
     _player.playbackEventStream.listen(_broadcastState);
 
+    // Обновляем длительность в MediaItem когда плеер её узнаёт (нужно для
+    // шторки Android — без актуальной длительности перемотка не отображается).
+    _player.durationStream.listen((duration) {
+      final current = mediaItem.value;
+      if (current != null && duration != null) {
+        mediaItem.add(current.copyWith(duration: duration));
+      }
+    });
+
     // Отслеживаем завершение трека
     _player.processingStateStream.listen((state) {
       if (state == ProcessingState.completed) {
@@ -49,9 +58,10 @@ class BuyBeatAudioHandler extends BaseAudioHandler with SeekHandler {
   @override
   Future<void> stop() async {
     await _player.stop();
-    // Дожидаемся перехода в idle для корректного завершения foreground service
+    // Дожидаемся перехода в idle, но с таймаутом чтобы не зависнуть на Realme/ColorOS
     await playbackState.firstWhere(
-        (state) => state.processingState == AudioProcessingState.idle);
+        (state) => state.processingState == AudioProcessingState.idle)
+        .timeout(const Duration(seconds: 3), onTimeout: () => playbackState.value);
   }
 
   @override
@@ -86,9 +96,26 @@ class BuyBeatAudioHandler extends BaseAudioHandler with SeekHandler {
     mediaItem.add(item);
   }
 
+  /// Generation counter — incremented on every playUrl call.
+  /// Lets us detect and bail out of stale concurrent requests.
+  int _playGeneration = 0;
+
   /// Загружает URL и начинает воспроизведение.
+  /// Сначала приостанавливаем старое аудио, чтобы избежать перекрытия на Web.
+  /// После загрузки обновляем длительность в MediaItem — без этого шторка
+  /// Android не показывает полосу перемотки.
   Future<void> playUrl(String url) async {
-    await _player.setUrl(url);
+    final generation = ++_playGeneration;
+    // Stop current playback immediately so old audio goes silent right away.
+    await _player.stop();
+    if (generation != _playGeneration) return; // superseded by newer call
+    final duration = await _player.setUrl(url);
+    if (generation != _playGeneration) return; // superseded by newer call
+    // Обновляем duration в MediaItem чтобы шторка показала полосу перемотки.
+    final current = mediaItem.value;
+    if (current != null && duration != null) {
+      mediaItem.add(current.copyWith(duration: duration));
+    }
     await _player.play();
   }
 

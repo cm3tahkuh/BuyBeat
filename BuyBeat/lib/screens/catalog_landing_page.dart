@@ -160,14 +160,22 @@ class _CatalogLandingPageState extends State<CatalogLandingPage> {
           Container(
             width: 36, height: 36,
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LG.accentGradient,
-              boxShadow: [BoxShadow(color: LG.accent.withValues(alpha: 0.3), blurRadius: 12)],
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 10)],
             ),
-            child: const Icon(Icons.music_note, color: Color(0xFF0A0A0F), size: 18),
+            clipBehavior: Clip.antiAlias,
+            child: Image.asset('assets/icon/Icon.png', fit: BoxFit.cover),
           ),
           const SizedBox(width: 12),
-          Text('BuyBeat', style: LG.h3),
+          Text(
+            'BUYBEAT',
+            style: LG.h3.copyWith(
+              fontFamily: 'Gorehand',
+              fontSize: 24,
+              letterSpacing: 0,
+              height: 1,
+            ),
+          ),
         ]),
       ),
 
