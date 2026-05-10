@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'websocket_service.dart';
 import 'native_notification_service.dart';
+import 'unread_count_service.dart';
 
 /// Сервис уведомлений о новых сообщениях.
 /// Показывает нативные уведомления (Android shade / iOS / Web).
@@ -61,5 +62,8 @@ class InAppNotificationService {
       payload: docId,
       chatId: event.chatId,
     );
+
+    // Update unread badge
+    UnreadCountService.instance.increment(docId);
   }
 }

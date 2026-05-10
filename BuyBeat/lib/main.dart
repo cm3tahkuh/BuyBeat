@@ -18,6 +18,7 @@ import 'widgets/global_player_bar.dart';
 import 'services/chat_service.dart';
 import 'services/auth_service.dart';
 import 'services/favorite_service.dart';
+import 'services/unread_count_service.dart';
 import 'models/chat.dart';
 import 'screens/chat_conversation_screen.dart';
 
@@ -150,6 +151,17 @@ class _BeatMarketplaceAppState extends State<BeatMarketplaceApp> {
   @override
   void initState() {
     super.initState();
+    UnreadCountService.instance.addListener(_onUnreadChanged);
+  }
+
+  void _onUnreadChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    UnreadCountService.instance.removeListener(_onUnreadChanged);
+    super.dispose();
   }
 
   /// Открыть чат с конкретным пользователем (вызывается из BeatDetailScreen)
@@ -252,7 +264,8 @@ class _BeatMarketplaceAppState extends State<BeatMarketplaceApp> {
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
                       _buildNavItem(Icons.home_rounded, 0),
-                      _buildNavItem(Icons.chat_bubble_rounded, 1),
+                      _buildNavItem(Icons.chat_bubble_rounded, 1,
+                          badge: UnreadCountService.instance.totalUnread),
                       _buildNavItem(Icons.shopping_bag_rounded, 2),
                       _buildNavItem(Icons.person_rounded, 3),
                     ],
@@ -266,28 +279,57 @@ class _BeatMarketplaceAppState extends State<BeatMarketplaceApp> {
     );
   }
 
-  Widget _buildNavItem(IconData icon, int index) {
+  Widget _buildNavItem(IconData icon, int index, {int badge = 0}) {
     final isActive = _selectedIndex == index;
     return GestureDetector(
       onTap: () => _onItemTapped(index),
       behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-        width: isActive ? 56 : 48,
-        height: isActive ? 56 : 48,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: isActive ? LG.accent : Colors.transparent,
-          boxShadow: isActive
-              ? [BoxShadow(color: LG.accent.withValues(alpha: 0.35), blurRadius: 16, spreadRadius: 1)]
-              : null,
-        ),
-        child: Icon(
-          icon,
-          size: isActive ? 26 : 24,
-          color: isActive ? const Color(0xFF0A0A0F) : const Color(0xFF5B5F6B),
-        ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            width: isActive ? 56 : 48,
+            height: isActive ? 56 : 48,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isActive ? LG.accent : Colors.transparent,
+              boxShadow: isActive
+                  ? [BoxShadow(color: LG.accent.withValues(alpha: 0.35), blurRadius: 16, spreadRadius: 1)]
+                  : null,
+            ),
+            child: Icon(
+              icon,
+              size: isActive ? 26 : 24,
+              color: isActive ? const Color(0xFF0A0A0F) : const Color(0xFF5B5F6B),
+            ),
+          ),
+          if (badge > 0)
+            Positioned(
+              right: -2,
+              top: -2,
+              child: Container(
+                constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                decoration: BoxDecoration(
+                  color: Colors.redAccent,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFF101015), width: 1.5),
+                ),
+                child: Text(
+                  badge > 99 ? '99+' : '$badge',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    height: 1.2,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

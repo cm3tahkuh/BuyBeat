@@ -1,4 +1,5 @@
 import 'dart:io' show Platform;
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'web_notification_helper.dart' as web_notify;
@@ -131,17 +132,25 @@ class NativeNotificationService {
       return;
     }
 
-    const androidDetails = AndroidNotificationDetails(
+    final vibrationPattern = Int64List.fromList([0, 400, 200, 400]);
+    final androidDetails = AndroidNotificationDetails(
       'chat_messages', // channel id
       'Сообщения чата', // channel name
       channelDescription: 'Уведомления о новых сообщениях в чатах',
-      importance: Importance.high,
-      priority: Priority.high,
+      // max importance — heads-up banner even on Realme/ColorOS
+      importance: Importance.max,
+      priority: Priority.max,
       showWhen: true,
       icon: '@mipmap/ic_launcher',
-      // звук по умолчанию
+      channelShowBadge: true,
       playSound: true,
       enableVibration: true,
+      vibrationPattern: vibrationPattern,
+      enableLights: true,
+      // категория "сообщение" — Realme/MIUI уважают её при фильтрации
+      category: AndroidNotificationCategory.message,
+      // ticker — fallback текст для accessibility и некоторых кастомных ROM
+      ticker: 'Новое сообщение',
     );
 
     const iosDetails = DarwinNotificationDetails(
@@ -150,7 +159,7 @@ class NativeNotificationService {
       presentSound: true,
     );
 
-    const details = NotificationDetails(
+    final details = NotificationDetails(
       android: androidDetails,
       iOS: iosDetails,
       macOS: iosDetails,

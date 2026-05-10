@@ -155,6 +155,15 @@ export default {
       models: ['api::message.message'],
 
       async afterCreate(event) {
+        // In Strapi v5 with Draft & Publish, afterCreate fires TWICE for a
+        // single REST-API create-with-publishedAt call:
+        // 1) draft row  → published_at IS NULL
+        // 2) published row → published_at IS NOT NULL
+        // We must ONLY broadcast for the published row; broadcasting the draft
+        // would cause duplicate notifications AND "disappearing messages" because
+        // the draft row-id is not returned by the public REST API on reload.
+        if (!event.result?.published_at) return;
+
         // Capture data we need INSIDE the lifecycle (before transaction closes).
         // event.params.data contains the input data passed to create(),
         // including the chat relation as a documentId string.
@@ -207,8 +216,10 @@ export default {
 
             const fullMessage = await strapi.documents('api::message.message').findOne({
               documentId: msgRow.document_id,
-              // Note: no status filter — default returns draft which has all content,
-              // and is guaranteed to exist at this point (this lifecycle fires on draft creation).
+              // Use 'published' status so the broadcast payload matches exactly
+              // what the REST API returns (same row IDs). This prevents the
+              // "disappearing messages" bug where the draft-id and published-id differ.
+              status: 'published',
               populate: {
                 users_permissions_user: {
                   fields: ['id', 'username', 'display_name'],

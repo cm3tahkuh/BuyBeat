@@ -7,6 +7,7 @@ import '../models/chat.dart';
 import '../models/user.dart';
 import '../services/chat_service.dart';
 import '../services/auth_service.dart';
+import '../services/unread_count_service.dart';
 import 'chat_conversation_screen.dart';
 
 /// Экран списка чатов (вкладка Chat)
@@ -38,6 +39,17 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _loadData();
+    UnreadCountService.instance.addListener(_onUnreadChanged);
+  }
+
+  void _onUnreadChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    UnreadCountService.instance.removeListener(_onUnreadChanged);
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -85,6 +97,10 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _navigateToConversation(Chat chat) async {
+    // Mark as read when opening
+    final key = chat.documentId ?? chat.id.toString();
+    UnreadCountService.instance.markRead(key);
+
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -165,6 +181,8 @@ class _ChatScreenState extends State<ChatScreen> {
     final avatarUrl = chat.otherParticipantAvatarUrl(uid);
     final lastMsg = chat.lastMessageText;
     final lastTime = chat.lastMessageTime ?? chat.updatedAt;
+    final unreadKey = chat.documentId ?? chat.id.toString();
+    final unreadCount = UnreadCountService.instance.unreadFor(unreadKey);
 
     return InkWell(
       onTap: () => _navigateToConversation(chat),
@@ -202,7 +220,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: LG.font(
                       color: LG.textPrimary,
-                      weight: FontWeight.w700,
+                      weight: unreadCount > 0 ? FontWeight.w800 : FontWeight.w700,
                       size: 15,
                     ),
                   ),
@@ -212,17 +230,52 @@ class _ChatScreenState extends State<ChatScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: LG.font(
-                      color: lastMsg != null ? LG.textSecondary : LG.textMuted,
+                      color: unreadCount > 0
+                          ? LG.textPrimary
+                          : (lastMsg != null ? LG.textSecondary : LG.textMuted),
                       size: 13,
+                      weight: unreadCount > 0 ? FontWeight.w600 : FontWeight.normal,
                     ),
                   ),
                 ],
               ),
             ),
-            // Время
-            Text(
-              _formatTime(lastTime),
-              style: LG.font(color: LG.textMuted, size: 12),
+            // Время + unread badge
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _formatTime(lastTime),
+                  style: LG.font(
+                    color: unreadCount > 0 ? LG.accent : LG.textMuted,
+                    size: 12,
+                    weight: unreadCount > 0 ? FontWeight.w700 : FontWeight.normal,
+                  ),
+                ),
+                if (unreadCount > 0) ...
+                  [
+                    const SizedBox(height: 4),
+                    Container(
+                      constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: LG.accent,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        unreadCount > 99 ? '99+' : '$unreadCount',
+                        style: const TextStyle(
+                          color: Color(0xFF0A0A0F),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          height: 1.1,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+              ],
             ),
           ],
         ),

@@ -190,21 +190,34 @@ class ChatService {
 
   // ============ СООБЩЕНИЯ ============
 
-  /// Получить сообщения чата (по documentId чата)
+  /// Получить ВСЕ сообщения чата (по documentId чата) — постраничная загрузка в цикле.
   Future<List<Message>> getChatMessages(String chatDocumentId, {int page = 1, int pageSize = 50}) async {
-    final response = await _strapi.get(
-      StrapiConfig.messages,
-      queryParams: {
-        ..._msgPopulate,
-        'filters[chat][documentId][\$eq]': chatDocumentId,
-        'sort': 'createdAt:asc',
-        'pagination[page]': page.toString(),
-        'pagination[pageSize]': pageSize.toString(),
-      },
-    );
+    const batchSize = 100;
+    int currentPage = 1;
+    final List<Message> all = [];
 
-    final items = StrapiService.parseList(response);
-    return items.map((json) => Message.fromJson(json)).toList();
+    while (true) {
+      final response = await _strapi.get(
+        StrapiConfig.messages,
+        queryParams: {
+          ..._msgPopulate,
+          'filters[chat][documentId][\$eq]': chatDocumentId,
+          'sort': 'createdAt:asc',
+          'pagination[page]': currentPage.toString(),
+          'pagination[pageSize]': batchSize.toString(),
+          'pagination[withCount]': 'false',
+        },
+      );
+
+      final items = StrapiService.parseList(response);
+      all.addAll(items.map((json) => Message.fromJson(json)));
+
+      // Если вернулось меньше batchSize — это последняя страница
+      if (items.length < batchSize) break;
+      currentPage++;
+    }
+
+    return all;
   }
 
   /// Отправить текстовое сообщение

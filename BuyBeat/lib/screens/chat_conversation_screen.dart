@@ -14,6 +14,7 @@ import '../services/chat_service.dart';
 import '../services/websocket_service.dart';
 import '../services/in_app_notification_service.dart';
 import '../services/audio_player_service.dart';
+import '../services/unread_count_service.dart';
 
 /// Экран переписки в конкретном чате
 class ChatConversationScreen extends StatefulWidget {
@@ -69,6 +70,9 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     // Сообщаем NotificationService что этот чат открыт
     InAppNotificationService.instance.activeChatId = widget.chat.id;
     InAppNotificationService.instance.activeChatDocumentId = widget.chat.documentId;
+    // Сбрасываем непрочитанные для этого чата
+    final chatKey = widget.chat.documentId ?? widget.chat.id.toString();
+    UnreadCountService.instance.markRead(chatKey);
 
     _audioStateSub = _audioService.playerStateStream.listen((state) {
       if (!mounted || !_showChatAudioPanel) return;
